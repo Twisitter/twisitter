@@ -1,0 +1,17 @@
+{
+ "variables": {
+  "tweet_text": "Reply text",
+  "reply": {
+   "in_reply_to_tweet_id": "1000000000000000011",
+   "exclude_reply_user_ids": []
+  }
+ },
+ "recordedVariableNames": [
+  "tweet_text",
+  "reply",
+  "media",
+  "semantic_annotation_ids",
+  "disallowed_reply_options",
+  "semantic_annotation_options"
+ ]
+}

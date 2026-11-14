@@ -1,0 +1,37 @@
+{
+ "data": {
+  "threaded_conversation_with_injections_v2": {
+   "instructions": [
+    {
+     "entries": [
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Top",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-1"
+       },
+       "entryId": "cursor-top-1900000000000000001",
+       "sortIndex": "1900000000000000001"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Bottom",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-2"
+       },
+       "entryId": "cursor-bottom-1900000000000000002",
+       "sortIndex": "1900000000000000002"
+      }
+     ],
+     "type": "TimelineAddEntries"
+    },
+    {
+     "direction": "Bottom",
+     "type": "TimelineTerminateTimeline"
+    }
+   ]
+  }
+ }
+}

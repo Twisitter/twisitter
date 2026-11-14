@@ -1,0 +1,292 @@
+{
+ "data": {
+  "user": {
+   "result": {
+    "__typename": "User",
+    "timeline": {
+     "timeline": {
+      "instructions": [
+       {
+        "type": "TimelineClearCache"
+       },
+       {
+        "entries": [
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 1",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000001",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 1",
+               "id_str": "1900000000000000002",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000002"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000002",
+          "sortIndex": "1900000000000000003"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 2",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000004",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 2",
+               "id_str": "1900000000000000005",
+               "in_reply_to_screen_name": "user4",
+               "in_reply_to_status_id_str": "1900000000000000004",
+               "in_reply_to_user_id_str": "1900000000000000006",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000005"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000005",
+          "sortIndex": "1900000000000000007"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 3",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000008",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 3",
+               "id_str": "1900000000000000009",
+               "in_reply_to_screen_name": "user5",
+               "in_reply_to_status_id_str": "1900000000000000010",
+               "in_reply_to_user_id_str": "1900000000000000011",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000009"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000009",
+          "sortIndex": "1900000000000000012"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 4",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000013",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 4",
+               "id_str": "1900000000000000014",
+               "in_reply_to_screen_name": "user6",
+               "in_reply_to_status_id_str": "1900000000000000013",
+               "in_reply_to_user_id_str": "1900000000000000015",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000014"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000014",
+          "sortIndex": "1900000000000000016"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 5",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000013",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 5",
+               "id_str": "1900000000000000017",
+               "in_reply_to_screen_name": "user6",
+               "in_reply_to_status_id_str": "1900000000000000013",
+               "in_reply_to_user_id_str": "1900000000000000015",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000017"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000017",
+          "sortIndex": "1900000000000000018"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineItem",
+           "entryType": "TimelineTimelineItem",
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 6",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1900000000000000008",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 6",
+               "id_str": "1900000000000000019",
+               "in_reply_to_screen_name": "user5",
+               "in_reply_to_status_id_str": "1900000000000000008",
+               "in_reply_to_user_id_str": "1900000000000000011",
+               "reply_count": 1,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1900000000000000019"
+             }
+            }
+           }
+          },
+          "entryId": "tweet-1900000000000000019",
+          "sortIndex": "1900000000000000020"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineCursor",
+           "cursorType": "Top",
+           "entryType": "TimelineTimelineCursor",
+           "value": "cursor-1"
+          },
+          "entryId": "cursor-top-1900000000000000021",
+          "sortIndex": "1900000000000000021"
+         },
+         {
+          "content": {
+           "__typename": "TimelineTimelineCursor",
+           "cursorType": "Bottom",
+           "entryType": "TimelineTimelineCursor",
+           "value": "cursor-2"
+          },
+          "entryId": "cursor-bottom-1900000000000000022",
+          "sortIndex": "1900000000000000022"
+         }
+        ],
+        "type": "TimelineAddEntries"
+       }
+      ]
+     }
+    }
+   }
+  }
+ }
+}

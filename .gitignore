@@ -1,0 +1,18 @@
+node_modules/
+dist-chrome/
+dist-firefox/
+dist-chrome-dev/
+dist-firefox-dev/
+chrome.zip
+firefox.zip
+source.zip
+.yarn/cache/
+.yarn/install-state.gz
+.env
+test-results/
+playwright-report/
+.e2e-user-data/
+web-ext-artifacts/
+# raw X answers before scrubbing; only scrubbed copies go in tests/fixtures
+recordings/
+.DS_Store

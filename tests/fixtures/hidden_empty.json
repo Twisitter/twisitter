@@ -1,0 +1,19 @@
+{
+ "data": {
+  "tweet": {
+   "result": {
+    "__typename": "Tweet",
+    "timeline_response": {
+     "timeline": {
+      "instructions": [
+       {
+        "entries": [],
+        "type": "TimelineAddEntries"
+       }
+      ]
+     }
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,48 @@
+{
+ "data": {
+  "threaded_conversation_with_injections_v2": {
+   "instructions": [
+    {
+     "type": "TimelineClearCache"
+    },
+    {
+     "entries": [
+      {
+       "content": {
+        "__typename": "TimelineTimelineItem",
+        "entryType": "TimelineTimelineItem",
+        "itemContent": {
+         "__typename": "TimelineTweet",
+         "itemType": "TimelineTweet",
+         "tweetDisplayType": "Tweet",
+         "tweet_results": {}
+        }
+       },
+       "entryId": "tweet-1000000000000000021",
+       "sortIndex": "1900000000000000001"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Bottom",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-1"
+       },
+       "entryId": "cursor-bottom-1900000000000000002",
+       "sortIndex": "1900000000000000002"
+      }
+     ],
+     "type": "TimelineAddEntries"
+    },
+    {
+     "direction": "Top",
+     "type": "TimelineTerminateTimeline"
+    },
+    {
+     "direction": "Bottom",
+     "type": "TimelineTerminateTimeline"
+    }
+   ]
+  }
+ }
+}

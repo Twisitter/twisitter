@@ -1,0 +1,82 @@
+# Twisitter
+
+A browser extension (Chrome, Edge, Firefox) that tells X users when their
+replies are shown to them as normal but hidden from everyone else.
+
+X can file a reply under "Show probable spam", leave it out of a post's reply
+list altogether, or let the post's author hide it. The reply's writer is never
+told, and still sees the reply where they left it. Twisitter compares the
+writer's view with a second X account's view and reports when they differ, and
+why.
+
+## What it reports
+
+For each reply it watches, the check reads, as the second account:
+
+1. the parent post's reply list in **Relevant** order, following "Show probable
+   spam" (`ShowMoreThreads`) cursors and a few pages of more replies. Recent
+   order leaves the probable-spam replies out entirely, so it isn't used;
+2. if the reply isn't there, `<post>/hidden` (`ModeratedTimeline`), the replies
+   the post's author hid;
+3. if it isn't there either, the reply opened directly.
+
+Then, for any reply the second account doesn't see listed, the parent's list
+as the author, to tell "hidden from others" from "gone for everyone".
+
+| State | Others see | Reported |
+|---|---|---|
+| listed | the reply under the post | no |
+| probable spam | it only after clicking "Show probable spam", Relevant order only | yes |
+| missing | it in no list, though it opens from a direct link | yes |
+| hidden by the post's author | it only on the post's hidden-replies page | yes (the writer is never told) |
+| unavailable | "This Post is unavailable" | yes, if its author still sees it |
+| deleted | nothing, its author included | no |
+
+It doesn't look at reach in other people's feeds: there's nothing to compare
+that against.
+
+## How it works
+
+- **Capture.** A page hook (`src/src/inject.ts`, in the page's own world) reads
+  the page's `CreateTweet` answers, so replies posted on x.com are watched at
+  once. The background also reads the user's Replies tab
+  (`UserRepliesTimeline`) every half hour, for replies posted from X's phone
+  apps. A reply can be added by its link too.
+- **The second account.** The user signs in to it on X's own login page. The
+  user's own X cookies are set aside first and put back after; the second
+  account's cookies stay in the extension and ride only on the extension's own
+  marked GET requests, through a declarativeNetRequest session rule (Chrome,
+  Edge) or a blocking webRequest listener (Firefox). Those requests omit the
+  browser's cookies, so X's answers can't touch the user's session.
+- **Pace.** A reply is checked about two minutes after it's seen, then at an
+  hour, six hours, a day, three days, a week, two weeks and a month. Reads go
+  one at a time, 2.5 s apart, at most 60 per 15 minutes per account (X allows
+  300 `TweetDetail` reads per 15 minutes).
+- **Learning X's client.** X changes GraphQL queryIds and feature flags with
+  each web client. The page hook sends the ones the page uses; the defaults in
+  `src/src/x-api.ts` are from 2026-11-14.
+
+Everything stays in the browser: the user's own sessions, X's own endpoints,
+no servers.
+
+## Develop
+
+Yarn 4 with a 7-day age gate on new packages (`.yarnrc.yml`), no install
+scripts.
+
+```bash
+node .yarn/releases/yarn-4.14.1.cjs install
+```
+
+```bash
+yarn typecheck && yarn test        # unit tests on recorded X answers
+yarn build-chrome-dev && yarn test:e2e   # the dev build in Chromium, X answered by routes
+```
+
+`tests/fixtures` holds recorded X answers, scrubbed in the page before they
+were saved (`scripts/scrub-x.cjs`): every id is replaced, names and text are
+stand-ins, and only the fields the extension reads are kept.
+
+Dev builds (`dist-*-dev`) add a transport probe and a dev bridge an x.com tab
+can drive (`window.postMessage({ source: 'twisitter-dev', cmd, args })`).
+Production builds leave both out.

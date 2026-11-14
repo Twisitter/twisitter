@@ -1,0 +1,100 @@
+{
+ "data": {
+  "threaded_conversation_with_injections_v2": {
+   "instructions": [
+    {
+     "entries": [
+      {
+       "content": {
+        "__typename": "TimelineTimelineItem",
+        "entryType": "TimelineTimelineItem",
+        "itemContent": {
+         "__typename": "TimelineLabel",
+         "itemType": "TimelineLabel",
+         "text": "Probable spam"
+        }
+       },
+       "entryId": "label-0",
+       "sortIndex": "1900000000000000013"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineModule",
+        "displayType": "VerticalConversation",
+        "entryType": "TimelineTimelineModule",
+        "items": [
+         {
+          "entryId": "conversationthread-1000000000000000031-tweet-1000000000000000031",
+          "item": {
+           "itemContent": {
+            "__typename": "TimelineTweet",
+            "itemType": "TimelineTweet",
+            "tweetDisplayType": "Tweet",
+            "tweet_results": {
+             "result": {
+              "__typename": "Tweet",
+              "core": {
+               "user_results": {
+                "result": {
+                 "__typename": "User",
+                 "core": {
+                  "name": "Name 6",
+                  "screen_name": "viewer"
+                 },
+                 "rest_id": "200000001"
+                }
+               }
+              },
+              "legacy": {
+               "conversation_id_str": "1000000000000000011",
+               "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+               "full_text": "Reply text 6",
+               "id_str": "1000000000000000031",
+               "in_reply_to_screen_name": "author",
+               "in_reply_to_status_id_str": "1000000000000000011",
+               "in_reply_to_user_id_str": "200000002",
+               "reply_count": 0,
+               "user_id_str": "200000001"
+              },
+              "rest_id": "1000000000000000031"
+             }
+            }
+           }
+          }
+         }
+        ]
+       },
+       "entryId": "conversationthread-1000000000000000031",
+       "sortIndex": "1900000000000000014"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Top",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-4"
+       },
+       "entryId": "cursor-top-1900000000000000015",
+       "sortIndex": "1900000000000000015"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Bottom",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-5"
+       },
+       "entryId": "cursor-bottom-1900000000000000016",
+       "sortIndex": "1900000000000000016"
+      }
+     ],
+     "type": "TimelineAddEntries"
+    },
+    {
+     "direction": "Bottom",
+     "type": "TimelineTerminateTimeline"
+    }
+   ]
+  }
+ }
+}

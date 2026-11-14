@@ -1,0 +1,73 @@
+{
+ "data": {
+  "threaded_conversation_with_injections_v2": {
+   "instructions": [
+    {
+     "type": "TimelineClearCache"
+    },
+    {
+     "entries": [
+      {
+       "content": {
+        "__typename": "TimelineTimelineItem",
+        "entryType": "TimelineTimelineItem",
+        "itemContent": {
+         "__typename": "TimelineTweet",
+         "itemType": "TimelineTweet",
+         "tweetDisplayType": "Tweet",
+         "tweet_results": {
+          "result": {
+           "__typename": "Tweet",
+           "core": {
+            "user_results": {
+             "result": {
+              "__typename": "User",
+              "core": {
+               "name": "Name 1",
+               "screen_name": "poster"
+              },
+              "rest_id": "200000003"
+             }
+            }
+           },
+           "legacy": {
+            "conversation_id_str": "1000000000000000001",
+            "created_at": "Mon Jan 05 12:00:00 +0000 2026",
+            "full_text": "Reply text 1",
+            "id_str": "1000000000000000001",
+            "reply_count": 1,
+            "user_id_str": "200000003"
+           },
+           "rest_id": "1000000000000000001"
+          }
+         }
+        }
+       },
+       "entryId": "tweet-1000000000000000001",
+       "sortIndex": "1900000000000000001"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Bottom",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-1"
+       },
+       "entryId": "cursor-bottom-1900000000000000002",
+       "sortIndex": "1900000000000000002"
+      }
+     ],
+     "type": "TimelineAddEntries"
+    },
+    {
+     "direction": "Top",
+     "type": "TimelineTerminateTimeline"
+    },
+    {
+     "direction": "Bottom",
+     "type": "TimelineTerminateTimeline"
+    }
+   ]
+  }
+ }
+}

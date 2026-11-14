@@ -1,0 +1,36 @@
+{
+ "data": {
+  "threaded_conversation_with_injections_v2": {
+   "instructions": [
+    {
+     "entries": [
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "Top",
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-2"
+       },
+       "entryId": "cursor-top-1900000000000000011",
+       "sortIndex": "1900000000000000011"
+      },
+      {
+       "content": {
+        "__typename": "TimelineTimelineCursor",
+        "cursorType": "ShowMoreThreads",
+        "displayTreatment": {
+         "actionText": "Show probable spam"
+        },
+        "entryType": "TimelineTimelineCursor",
+        "value": "cursor-3"
+       },
+       "entryId": "cursor-showmorethreads-1900000000000000012",
+       "sortIndex": "1900000000000000012"
+      }
+     ],
+     "type": "TimelineAddEntries"
+    }
+   ]
+  }
+ }
+}
