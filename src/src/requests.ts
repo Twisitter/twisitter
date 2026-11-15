@@ -14,7 +14,7 @@
 
 import api from './api'
 import { browserCsrf, cookieHeaderFor, csrfFrom, type StoredCookie } from './cookies'
-import { KEYS } from './store'
+import { getLocal, KEYS, oneAtATime, setLocal } from './store'
 import { apiHeaders, DEFAULT_OPS, graphqlUrl, readAnswer, WEB_BEARER, type OpName, type Operation, type XAnswer } from './x-api'
 
 export const MARKER = 'tw_as'
@@ -44,11 +44,11 @@ export const isMarkedFor = (url: string, token: string): boolean => isToken(toke
 export const OPS_KEY = 'ops'
 export const BEARER_KEY = 'bearer'
 export async function currentOps(): Promise<Record<OpName, Operation>> {
-    const { [OPS_KEY]: learned } = (await api.storage.local.get(OPS_KEY)) as any
+    const learned = await getLocal<any>(OPS_KEY, null)
     return { ...DEFAULT_OPS, ...(learned && typeof learned === 'object' ? learned : {}) }
 }
 async function currentBearer(): Promise<string> {
-    const { [BEARER_KEY]: b } = (await api.storage.local.get(BEARER_KEY)) as any
+    const b = await getLocal<unknown>(BEARER_KEY, null)
     return typeof b === 'string' && /^[A-Za-z0-9%_-]{40,200}$/.test(b) ? b : WEB_BEARER
 }
 
@@ -57,10 +57,9 @@ async function currentBearer(): Promise<string> {
 export const READ_GAP_MS = 2500
 export const FETCH_TIMEOUT_MS = 20000
 let lastReadAt = 0
-let chain: Promise<unknown> = Promise.resolve()
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 function paced<T>(run: () => Promise<T>): Promise<T> {
-    const next = chain.then(async () => {
+    return oneAtATime('x-reads', async () => {
         const wait = lastReadAt + READ_GAP_MS - Date.now()
         if (wait > 0) await sleep(wait)
         try {
@@ -69,8 +68,6 @@ function paced<T>(run: () => Promise<T>): Promise<T> {
             lastReadAt = Date.now()
         }
     })
-    chain = next.catch(() => {})
-    return next
 }
 
 // A read log per account, so a check can see how many reads the last 15
@@ -80,14 +77,14 @@ export const READ_WINDOW_MS = 15 * 60 * 1000
 export const READS_PER_WINDOW = 60
 const READ_LOG_KEY = 'read_log'
 async function logRead(who: string) {
-    const { [READ_LOG_KEY]: log = {} } = (await api.storage.local.get(READ_LOG_KEY)) as any
+    const log = await getLocal<any>(READ_LOG_KEY, {})
     const now = Date.now()
     const list: number[] = (Array.isArray(log[who]) ? log[who] : []).filter((t: number) => now - t < READ_WINDOW_MS)
     list.push(now)
-    await api.storage.local.set({ [READ_LOG_KEY]: { ...log, [who]: list } })
+    await setLocal(READ_LOG_KEY, { ...log, [who]: list })
 }
 export async function readsInWindow(who: string): Promise<number> {
-    const { [READ_LOG_KEY]: log = {} } = (await api.storage.local.get(READ_LOG_KEY)) as any
+    const log = await getLocal<any>(READ_LOG_KEY, {})
     const now = Date.now()
     return (Array.isArray(log[who]) ? log[who] : []).filter((t: number) => now - t < READ_WINDOW_MS).length
 }
@@ -112,7 +109,7 @@ const notSent = (why: string): XAnswer => ({ status: 0, failure: `not sent: ${wh
 // A second account's sign-in in progress, as connect.ts saves it (its
 // isConnecting reads the same record the same way)
 export const pendingSignIn = async (): Promise<{ started: number; main: unknown[]; mainUserId: string; tabId?: number } | null> => {
-    const { [KEYS.connectPending]: p } = (await api.storage.local.get(KEYS.connectPending)) as any
+    const p = await getLocal<any>(KEYS.connectPending, null)
     return p && Number(p.started) > 0 && Array.isArray(p.main) ? p : null
 }
 // While a second account signs in, the browser holds none of the user's X
@@ -135,7 +132,7 @@ export async function readAsUser(name: OpName, variables: object): Promise<XAnsw
 
 // The second account as stored now (connect.ts saves it at a sign-in)
 export const getSecondAccount = async (): Promise<SecondAccount | null> => {
-    const { [KEYS.second]: a } = (await api.storage.local.get(KEYS.second)) as any
+    const a = await getLocal<any>(KEYS.second, null)
     return a && typeof a.screenName === 'string' && isToken(a.token) && Array.isArray(a.cookies) ? a : null
 }
 
@@ -181,9 +178,8 @@ const sameRule = (a: any, b: any): boolean =>
 // stored now, never one a caller began with, so a round that began before a
 // Disconnect can't bring the old account's rule back. Session rules outlive
 // the worker but not the browser, so what's there is read, not remembered.
-let ruleChain: Promise<unknown> = Promise.resolve()
 export function syncSecondAccountRule(): Promise<void> {
-    const next = ruleChain.then(async () => {
+    return oneAtATime('second-account-rule', async () => {
         if (__BUILT_FOR__ !== 'chrome') return
         const dnr = (globalThis as any).chrome?.declarativeNetRequest
         if (!dnr?.updateSessionRules) return
@@ -195,8 +191,6 @@ export function syncSecondAccountRule(): Promise<void> {
         if (dnr.getSessionRules && sameRule(have, want)) return
         await dnr.updateSessionRules({ removeRuleIds: [SECOND_RULE_ID], addRules: want ? [want] : [] })
     })
-    ruleChain = next.catch(() => {})
-    return next
 }
 
 // Firefox: a blocking webRequest listener does what Chrome's rule does. It's
