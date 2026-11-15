@@ -86,6 +86,8 @@ export const KEYS = {
     repliesTabAt: 'replies_tab_at',
     // a second account's sign-in in progress (connect.ts)
     connectPending: 'connect_pending',
+    // the x.com tab step 1 of the welcome page opened (setup.ts)
+    setupTab: 'setup_tab',
 } as const
 
 export const MINUTE = 60 * 1000

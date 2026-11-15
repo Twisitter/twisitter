@@ -51,13 +51,15 @@ const distSrcPath = path.join(distPath, 'src')
 // Chrome and Edge get the MV3 manifest as written. Firefox gets MV2: a
 // persistent background page, webRequest for the second account's cookies
 // (Chrome uses a declarativeNetRequest rule), and the page hook injected by a
-// script tag, since an MV2 manifest can't ask for the page's world.
+// script tag, since an MV2 manifest can't ask for the page's world. No
+// scripting permission: MV2's tabs.executeScript, which adds the scripts to
+// x.com tabs open at install, needs only the x.com host permission.
 function transformManifest(buffer) {
     const manifest = JSON.parse(buffer.toString())
     if (browserIsFirefox) {
         manifest.manifest_version = 2
         manifest.permissions = manifest.permissions
-            .filter(p => !p.startsWith('declarativeNetRequest'))
+            .filter(p => !p.startsWith('declarativeNetRequest') && p !== 'scripting')
             .concat(['webRequest', 'webRequestBlocking'], manifest.host_permissions || [])
         delete manifest.host_permissions
         delete manifest.minimum_chrome_version

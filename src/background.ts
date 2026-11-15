@@ -21,6 +21,7 @@ import {
 } from './src/connect'
 import { accountTrouble, ensureAlarms, forget, notePageUser, recentReplies, runTick, SOON_ALARM, TICK_ALARM, tickSoon, toNewReply, trackByLink, updateBadge } from './src/monitor'
 import { BEARER_KEY, installFirefoxHeaderListener, OPS_KEY, readsInWindow } from './src/requests'
+import { addToOpenXTabs, onSetupTabUrl, openX, setupSignedIn, setupState, setupTabClosed, signInOnX, type Asker } from './src/setup'
 import { getLocal, getTracked, KEYS, setLocal, trackReplies, type Me } from './src/store'
 import { runProbe } from './src/probe'
 import { isOpName, isQueryId, isTweetId } from './src/x-api'
@@ -30,6 +31,9 @@ installFirefoxHeaderListener()
 const isXTab = (sender: chrome.runtime.MessageSender) =>
     !!sender.tab && /^https:\/\/x\.com\//.test(String(sender.url || sender.tab.url || ''))
 const isOwnPage = (sender: chrome.runtime.MessageSender) => String(sender.url || '').startsWith(api.runtime.getURL(''))
+// the extension page in a tab that asked (the toolbar popup has no tab)
+const askerOf = (sender: chrome.runtime.MessageSender): Asker | undefined =>
+    sender.tab?.id != null ? { tabId: sender.tab.id, windowId: sender.tab.windowId } : undefined
 
 // The extension reads as the user with the browser's main cookies. A private
 // window or a Firefox container keeps cookies of its own, so who its pages are
@@ -105,6 +109,8 @@ async function onPageUser(msg: any, sender: chrome.runtime.MessageSender) {
     }
     if (!inMainCookieStore(sender.tab)) return
     await notePageUser(who)
+    // the user's own account is known now: step 1 of the welcome page is done
+    if ((await getLocal<Me | null>(KEYS.me, null))?.userId === who.userId) await setupSignedIn()
 }
 
 // The in-page notes: replies X hides from others, by id
@@ -128,10 +134,13 @@ async function tellXTabs() {
 async function getState() {
     const tracked = Object.values(await getTracked()).sort((a, b) => (b.createdAt || b.capturedAt) - (a.createdAt || a.capturedAt))
     const second = await getSecondAccount()
+    const me = await getLocal<Me | null>(KEYS.me, null)
     return {
         version: __VERSION__,
         dev: __DEV__,
-        me: await getLocal<Me | null>(KEYS.me, null),
+        me,
+        // step 1 of the welcome page, while the account isn't known (setup.ts)
+        setup: me ? null : await setupState(),
         second: second && { screenName: second.screenName, userId: second.userId, connectedAt: second.connectedAt, graduated: second.graduated },
         secondStatus: await accountTrouble('second'),
         userStatus: await accountTrouble('user'),
@@ -191,6 +200,10 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
             return reply(getLocal<Me | null>(KEYS.me, null).then(me => startConnect(me?.userId || '')))
         case 'connect-cancel':
             return reply(cancelConnect('cancelled').then(() => ({ ok: true })))
+        case 'open-x':
+            return reply(openX(askerOf(sender)))
+        case 'sign-in-x':
+            return reply(signInOnX(askerOf(sender)))
         case 'disconnect':
             return reply(disconnectSecond().then(() => ({ ok: true })))
         case 'check-now':
@@ -296,8 +309,21 @@ api.notifications.onClicked.addListener(id => {
     api.notifications.clear(id).catch(() => {})
 })
 
+// --- first run (setup.ts) ---
+
+// step 1's background tab: where X sends it says whether anyone's signed in
+api.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.url) onSetupTabUrl(tabId, changeInfo.url).catch(() => {})
+})
+api.tabs.onRemoved.addListener(tabId => {
+    setupTabClosed(tabId).catch(() => {})
+})
+
 api.runtime.onInstalled.addListener(details => {
-    if (details.reason === 'install') api.tabs.create({ url: api.runtime.getURL('src/popup.html#welcome') }).catch(() => {})
+    if (details.reason !== 'install') return
+    // x.com tabs already open learn the account now, without a reload
+    addToOpenXTabs().catch(() => {})
+    api.tabs.create({ url: api.runtime.getURL('src/popup.html#welcome') }).catch(() => {})
 })
 
 // --- start ---

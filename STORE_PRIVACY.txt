@@ -40,3 +40,8 @@ Shows a notification when a check finds that X hides one of the user's replies f
 ALARMS
 
 Schedules the background checks: one recurring alarm every five minutes, each checking at most one reply, so reads stay few and slow; a one-time alarm about two minutes after the user posts a reply, for its first check; and, during an optional second-account sign-in, a one-time alarm that ends a sign-in left open for 15 minutes, so the user's own login goes back.
+
+
+SCRIPTING
+
+Right after install, adds Twisitter's content script, its page hook and the note's style to x.com tabs that were already open. Chrome loads content scripts only into pages opened after an install, so without this those tabs would need a reload before Twisitter could tell which X account the user is signed in to. It runs only on x.com tabs, only at install, and skips any tab that already has the content script.

@@ -8,7 +8,8 @@
         "alarms",
         "notifications",
         "cookies",
-        "declarativeNetRequestWithHostAccess"
+        "declarativeNetRequestWithHostAccess",
+        "scripting"
     ],
     "host_permissions": [
         "https://x.com/*"

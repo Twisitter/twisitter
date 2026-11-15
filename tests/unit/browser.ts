@@ -1,5 +1,5 @@
 // A stand-in for the extension APIs the background uses (storage, the header
-// rule, the badge), and for fetch, so a round can run here as it would in the
+// rule, the badge, tabs and scripts), and for fetch, so a round can run here as it would in the
 // worker. X's answers come from a table keyed like fakeRead's, with who asked:
 // "second TweetDetail:<focal>:<cursor>" for a marked read, "user ..." for one
 // with the browser's own cookies.
@@ -16,6 +16,22 @@ export function fakeBrowser() {
     const rules: any[] = []
     const fetched: string[] = []
     let routes: Record<string, Route> = {}
+    // tabs a test lays out, and each call made on tabs and scripts
+    const openTabs: FakeTab[] = []
+    const tabCalls: string[] = []
+    // tabs whose content script answers a ping, and tabs that take no scripts
+    const pinged = new Set<number>()
+    const refusing = new Set<number>()
+    let nextTab = 100
+    const tabById = (id: number) => {
+        const t = openTabs.find(x => x.id === id)
+        if (!t) throw new Error(`No tab with id: ${id}.`)
+        return t
+    }
+    const scriptInto = (tabId: number, call: string) => {
+        if (refusing.has(tabId)) throw new Error('Cannot access contents of the page.')
+        tabCalls.push(call)
+    }
     ;(globalThis as any).chrome = {
         runtime: { id: EXTENSION_ID, getURL: (p: string) => `chrome-extension://${EXTENSION_ID}/${p}` },
         storage: {
@@ -37,6 +53,33 @@ export function fakeBrowser() {
                 rules.push(...structuredClone(addRules))
             },
         },
+        tabs: {
+            query: async ({ url }: { url?: string } = {}) => structuredClone(openTabs.filter(t => !url || t.url.startsWith(url.replace(/\*$/, '')))),
+            get: async (id: number) => structuredClone(tabById(id)),
+            create: async ({ url, active, openerTabId, windowId }: { url: string; active?: boolean; openerTabId?: number; windowId?: number }) => {
+                const t: FakeTab = { id: nextTab++, url, active: active !== false, windowId: windowId ?? 1, ...(openerTabId != null && { openerTabId }) }
+                openTabs.push(t)
+                tabCalls.push(`create ${t.id} ${url}${active === false ? ' background' : ''}`)
+                return structuredClone(t)
+            },
+            update: async (id: number, { url, active }: { url?: string; active?: boolean }) => {
+                const t = tabById(id)
+                if (url) t.url = url
+                if (active) t.active = true
+                tabCalls.push(`update ${id}${url ? ` ${url}` : ''}${active ? ' front' : ''}`)
+                return structuredClone(t)
+            },
+            reload: async (id: number) => void tabCalls.push(`reload ${tabById(id).id}`),
+            sendMessage: async (id: number, msg: any) => {
+                if (!pinged.has(id)) throw new Error('Could not establish connection. Receiving end does not exist.')
+                return msg?.action === 'ping' ? { ok: true } : undefined
+            },
+        },
+        scripting: {
+            executeScript: async ({ target, files, world }: { target: { tabId: number }; files: string[]; world?: string }) =>
+                void scriptInto(target.tabId, `script ${target.tabId} ${files.join(',')}${world ? ` ${world}` : ''}`),
+            insertCSS: async ({ target, files }: { target: { tabId: number }; files: string[] }) => void scriptInto(target.tabId, `css ${target.tabId} ${files.join(',')}`),
+        },
     }
     ;(globalThis as any).fetch = async (url: string) => {
         const u = new URL(url)
@@ -53,6 +96,10 @@ export function fakeBrowser() {
         store,
         rules,
         fetched,
+        openTabs,
+        tabCalls,
+        pinged,
+        refusing,
         answer(table: Record<string, Route>) {
             routes = table
         },
@@ -61,8 +108,22 @@ export function fakeBrowser() {
             rules.length = 0
             fetched.length = 0
             routes = {}
+            openTabs.length = 0
+            tabCalls.length = 0
+            pinged.clear()
+            refusing.clear()
+            nextTab = 100
         },
     }
+}
+
+export interface FakeTab {
+    id: number
+    url: string
+    active: boolean
+    windowId: number
+    discarded?: boolean
+    openerTabId?: number
 }
 
 // Runs `work` with fake timers moving on, so the reads' 2.5 s pacing and the

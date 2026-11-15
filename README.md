@@ -66,6 +66,13 @@ that against.
   once. The background also reads the user's Replies tab
   (`UserRepliesTimeline`) every half hour, for replies posted from X's phone
   apps. A reply can be added by its link too.
+- **First run.** The user's own account comes from an x.com page, so at
+  install Twisitter adds its scripts to the x.com tabs already open (browsers
+  load content scripts only into pages opened later). Step 1 of the welcome
+  page can open x.com in a background tab, leaving the welcome page in front.
+  Signed out, X sends that tab from `/home` to its front page; step 1 then asks
+  the user to sign in there, and brings the welcome page back once a page says
+  who they are (`src/src/setup.ts`).
 - **The second account.** The user signs in to it on X's own login page. The
   user's own X cookies are set aside first and put back after; the second
   account's cookies stay in the extension and ride only on the extension's own

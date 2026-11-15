@@ -34,7 +34,8 @@ test('popup without an X session invites a sign-in and a second account', async 
     const page = await context.newPage()
     await page.goto(popupUrl(extensionId))
     await expect(page.getByRole('heading', { name: 'Twisitter' })).toBeVisible()
-    await expect(page.getByText('Open x.com in this browser, signed in')).toBeVisible()
+    // step 1: x.com opens in a background tab and says who's signed in (setup.spec.js)
+    await expect(page.getByRole('button', { name: 'Open x.com' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Connect a second account' })).toBeDisabled()
 })
 

@@ -4,13 +4,15 @@
 import api from './api'
 import { isFinding, type ReplyState } from './check'
 import { ago, explain, historyText, positionText, stateLabel } from './describe'
-import type { Tracked } from './store'
+import { KEYS, type Tracked } from './store'
 import { tweetUrl } from './x-api'
 
 type State = {
     version: string
     dev: boolean
     me: { userId: string; screenName: string } | null
+    // step 1's x.com tab, while the account isn't known (setup.ts)
+    setup: { state: 'opening' | 'signed_out' | 'signing_in'; at: number } | null
     second: { screenName: string; userId: string; connectedAt: number; graduated?: boolean } | null
     secondStatus: { state: string; until?: number; detail?: string } | null
     userStatus: { state: string; until?: number; detail?: string } | null
@@ -46,6 +48,7 @@ const CONNECT_ERRORS: Record<string, string> = {
     no_tab: "Couldn't open X's login page.",
     already_connecting: 'A sign-in is already open.',
     connecting: 'A sign-in is open. Finish it or cancel it first.',
+    no_x_tab: "Couldn't open x.com.",
 }
 
 let busy = ''
@@ -55,6 +58,10 @@ let devOutput = ''
 const drafts: Record<string, string> = {}
 const LINK_ID = 'reply-link'
 const PROBE_ID = 'probe-post'
+
+// One redraw at a time, so an older state never lands after a newer one
+let drawing: Promise<void> = Promise.resolve()
+const redraw = (): Promise<void> => (drawing = drawing.then(render, render))
 
 // A text field that keeps what's typed when the popup redraws. The draft goes
 // in the value property, not the attribute, so a part of the popup that's
@@ -74,14 +81,35 @@ function field(id: string, props: Record<string, any>): HTMLInputElement {
 async function act(name: string, run: () => Promise<any>) {
     busy = name
     message = null
-    await render()
+    await redraw()
     try {
         const r = await run()
         if (r && r.ok === false) message = { text: CONNECT_ERRORS[r.error] || `Didn't work: ${r.error}`, bad: true }
     } finally {
         busy = ''
-        await render()
+        await redraw()
     }
+}
+
+// how long step 1 waits on the tab it opened before offering more
+const OPENING_MS = 15000
+
+// Step 1, until Twisitter knows the user's own account: x.com opens in a
+// background tab and says who's signed in, while this page stays in front.
+// Signed out, X sends that tab to its front page, and this asks the user to
+// sign in there (setup.ts).
+function signInStep(s: State): HTMLElement {
+    const inTab = document.body.classList.contains('tab')
+    const go = (text: string, action: string, primary = true) =>
+        el('button', { class: primary ? 'primary' : undefined, text, disabled: busy ? 'disabled' : undefined, onclick: () => act(action, () => ask(action)) })
+    const say = (text: string, ...buttons: HTMLElement[]) => el('div', {}, el('div', { text }), el('div', { class: 'actions' }, ...buttons))
+    const setup = s.setup
+    if (setup && setup.state !== 'opening')
+        return say(`You’re not signed in to X in this browser. Sign in on x.com${inTab ? ', and Twisitter brings you back here' : ''}.`, go('Sign in on x.com', 'sign-in-x'))
+    if (setup && Date.now() - setup.at < OPENING_MS)
+        return say('Opening x.com in a background tab to see who’s signed in…', el('button', { class: 'primary', text: 'Opening x.com…', disabled: 'disabled' }))
+    if (setup) return say('x.com hasn’t said who’s signed in. If you’re not signed in there, sign in.', go('Sign in on x.com', 'sign-in-x'), go('Open x.com again', 'open-x', false))
+    return say(`Twisitter learns your X account from an x.com page. It opens one in a background tab${inTab ? ', and this page stays here' : ''}.`, go('Open x.com', 'open-x'))
 }
 
 function accountSection(s: State) {
@@ -100,7 +128,9 @@ function accountSection(s: State) {
                       })
                     : '',
           )
-        : el('div', { class: 'muted' }, 'Open x.com in this browser, signed in to your own account.')
+        : location.hash === '#welcome'
+          ? el('div', { class: 'muted', text: 'Your own X account: not known yet (step 1).' })
+          : signInStep(s)
     let second: HTMLElement
     if (s.connecting) {
         second = el(
@@ -150,6 +180,7 @@ function accountSection(s: State) {
                     class: 'primary',
                     text: 'Connect a second account',
                     disabled: !s.me || busy ? 'disabled' : undefined,
+                    title: s.me ? undefined : 'Step 1 first: Twisitter needs to know your own X account.',
                     onclick: () => act('connect', () => ask('connect-start')),
                 }),
             ),
@@ -278,9 +309,7 @@ function welcomeSection(s: State) {
             step(
                 !!s.me,
                 'Be signed in to X here',
-                s.me
-                    ? `Signed in as @${s.me.screenName}.`
-                    : el('span', {}, 'Open ', el('a', { href: 'https://x.com/home', target: '_blank', text: 'x.com' }), ' and sign in. Reload any x.com tab that was open before Twisitter was installed.'),
+                s.me ? `Signed in as @${s.me.screenName}.` : signInStep(s),
             ),
             step(
                 !!s.second,
@@ -369,8 +398,12 @@ async function render() {
 }
 
 if (location.hash || window.innerWidth > 500) document.body.classList.add('tab')
-render()
+redraw()
 ask('mark-seen')
 // a sign-in or a check finishing elsewhere shows up here
-const timer = setInterval(() => (document.hidden ? null : busy ? null : render()), 4000)
+const timer = setInterval(() => (document.hidden ? null : busy ? null : redraw()), 4000)
 window.addEventListener('unload', () => clearInterval(timer))
+// the account, step 1's tab and the second account show at once
+api.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && (KEYS.me in changes || KEYS.setupTab in changes || KEYS.second in changes)) redraw()
+})
