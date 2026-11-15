@@ -2,7 +2,7 @@ Answers for the stores' privacy forms: the Chrome Web Store's Privacy tab and th
 
 Update this file whenever a permission changes, or what the extension does with one.
 
-Privacy policy URL: https://twisitter.com/privacy (not live yet; PRIVACY.md is its text)
+Privacy policy URL: https://twisitter.com/privacy (live since 2026-11-15; PRIVACY.md is its text, and twisitter-site deploys it)
 Remote code: No
 Data usage: tick Authentication information and Website content, and all three certifications. Leave Personally identifiable information unticked: an X handle is a pseudonym.
 
