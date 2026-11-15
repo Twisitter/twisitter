@@ -51,9 +51,25 @@ const CONNECT_ERRORS: Record<string, string> = {
 let busy = ''
 let message: { text: string; bad?: boolean } | null = null
 let devOutput = ''
-// what's typed in the reply-link field, kept across redraws
-let linkDraft = ''
+// what's typed in each field, by the field's id, kept across redraws
+const drafts: Record<string, string> = {}
 const LINK_ID = 'reply-link'
+const PROBE_ID = 'probe-post'
+
+// A text field that keeps what's typed when the popup redraws. The draft goes
+// in the value property, not the attribute, so a part of the popup that's
+// otherwise the same still matches the one on screen (see render).
+function field(id: string, props: Record<string, any>): HTMLInputElement {
+    const input = el('input', {
+        ...props,
+        id,
+        oninput: () => {
+            drafts[id] = input.value
+        },
+    }) as HTMLInputElement
+    input.value = drafts[id] || ''
+    return input
+}
 
 async function act(name: string, run: () => Promise<any>) {
     busy = name
@@ -150,16 +166,7 @@ function accountSection(s: State) {
 }
 
 function checkSection(s: State) {
-    const input = el('input', {
-        type: 'url',
-        id: LINK_ID,
-        placeholder: 'Link to a reply on x.com',
-        'aria-label': 'Link to a reply',
-        value: linkDraft,
-        oninput: () => {
-            linkDraft = input.value
-        },
-    }) as HTMLInputElement
+    const input = field(LINK_ID, { type: 'url', placeholder: 'Link to a reply on x.com', 'aria-label': 'Link to a reply' })
     return el(
         'section',
         {},
@@ -184,8 +191,10 @@ function checkSection(s: State) {
                     if (url)
                         act('add', async () => {
                             const r = await ask('add-link', { url })
-                            // a link that went in leaves the field for the next one
-                            if (r?.ok) linkDraft = ''
+                            // a link that went in leaves the field for the next
+                            // one, unless the next one was typed meanwhile (the
+                            // part is redrawn, as busy changed)
+                            if (r?.ok && (drafts[LINK_ID] || '').trim() === url) delete drafts[LINK_ID]
                             return r
                         })
                 },
@@ -291,7 +300,8 @@ function welcomeSection(s: State) {
 }
 
 function devSection() {
-    const post = el('input', { type: 'url', placeholder: 'Post id or link, for the transport probe', 'aria-label': 'Post for the probe' }) as HTMLInputElement
+    // text, not url: the browser wouldn't send a bare id from a url field
+    const post = field(PROBE_ID, { type: 'text', placeholder: 'Post id or link, for the transport probe', 'aria-label': 'Post for the probe' })
     return el(
         'section',
         {},
@@ -319,24 +329,39 @@ function devSection() {
 async function render() {
     const s: State = await ask('get-state')
     const root = document.getElementById('root')!
-    const kids = [
-        el('header', {}, el('h1', { text: 'Twisitter' }), el('span', { class: 'version', text: s?.version ? `v${s.version}` : '' })),
-        message && el('section', {}, el('div', { class: `notice ${message.bad ? 'bad' : ''}`, text: message.text })),
-        s && location.hash === '#welcome' && welcomeSection(s),
-        s && accountSection(s),
-        s && checkSection(s),
-        s && repliesSection(s),
-        s?.dev && devSection(),
-    ].filter(Boolean) as Node[]
-    // a redraw mustn't take the reply-link field from someone typing in it
-    const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.id === LINK_ID ? document.activeElement : null
-    const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null
-    root.replaceChildren(...kids)
-    const field = typing && (document.getElementById(LINK_ID) as HTMLInputElement | null)
-    if (field) {
-        field.focus()
+    const parts: Array<[string, HTMLElement | null | false | undefined]> = [
+        ['header', el('header', {}, el('h1', { text: 'Twisitter' }), el('span', { class: 'version', text: s?.version ? `v${s.version}` : '' }))],
+        ['message', message && el('section', {}, el('div', { class: `notice ${message.bad ? 'bad' : ''}`, text: message.text }))],
+        ['welcome', s && location.hash === '#welcome' && welcomeSection(s)],
+        ['account', s && accountSection(s)],
+        ['check', s && checkSection(s)],
+        ['replies', s && repliesSection(s)],
+        ['dev', s?.dev && devSection()],
+    ]
+    const kids: HTMLElement[] = []
+    for (const [name, node] of parts)
+        if (node) {
+            node.dataset.part = name
+            kids.push(node)
+        }
+    // Only the parts that changed are redrawn, each in its place. A part
+    // that's the same keeps its nodes, so a field in it is left alone while
+    // someone types in it (isEqualNode compares attributes and text, not
+    // what's typed). Each part's handlers depend only on what it shows.
+    const focused = document.activeElement instanceof HTMLInputElement && root.contains(document.activeElement) ? document.activeElement : null
+    const caret = focused && ([focused.selectionStart, focused.selectionEnd, focused.selectionDirection] as const)
+    const shown = [...root.children] as HTMLElement[]
+    if (shown.length === kids.length && kids.every((k, i) => k.dataset.part === shown[i].dataset.part))
+        kids.forEach((k, i) => {
+            if (!shown[i].isEqualNode(k)) shown[i].replaceWith(k)
+        })
+    else root.replaceChildren(...kids)
+    // a part that did change gives its field back to whoever was typing in it
+    const again = focused && !focused.isConnected ? document.getElementById(focused.id) : null
+    if (again instanceof HTMLInputElement) {
+        again.focus()
         try {
-            if (caret && caret[0] !== null && caret[1] !== null) field.setSelectionRange(caret[0], caret[1])
+            if (caret && caret[0] !== null && caret[1] !== null) again.setSelectionRange(caret[0], caret[1], caret[2] || undefined)
         } catch {
             /* the field takes no selection */
         }

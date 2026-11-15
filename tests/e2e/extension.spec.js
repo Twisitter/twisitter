@@ -207,15 +207,56 @@ test('a message from the page can’t pass itself off as another kind', async ({
     expect((await dev(worker, 'state')).me).toMatchObject({ userId: IDS.authorUser, screenName: 'author' })
 })
 
-test('the popup keeps a reply link being typed when it redraws', async ({ context, extensionId }) => {
+const TYPED = 'https://x.com/someone/status/12'
+
+test('the popup leaves a field alone while someone types in it', async ({ context, extensionId }) => {
     const page = await context.newPage()
     await page.goto(popupUrl(extensionId))
-    const field = page.getByLabel('Link to a reply')
-    await field.fill('https://x.com/someone/status/12')
-    // the popup redraws every 4 seconds
-    await page.waitForTimeout(4500)
-    await expect(field).toHaveValue('https://x.com/someone/status/12')
-    await expect(field).toBeFocused()
+    // a focus change from here on would mean the field was redrawn under the typing
+    await page.evaluate(() => document.addEventListener('focusin', () => window.focusChanges++))
+    for (const label of ['Link to a reply', 'Post for the probe']) {
+        const field = page.getByLabel(label)
+        await field.fill(TYPED)
+        await page.evaluate(() => (window.focusChanges = 0))
+        // the popup redraws every 4 seconds
+        await page.waitForTimeout(4500)
+        await expect(field).toHaveValue(TYPED)
+        await expect(field).toBeFocused()
+        expect(await page.evaluate(() => window.focusChanges)).toBe(0)
+    }
+})
+
+test('the popup’s fields share one look', async ({ context, extensionId }) => {
+    const page = await context.newPage()
+    await page.goto(popupUrl(extensionId))
+    const look = field =>
+        field.evaluate(f => {
+            const s = getComputedStyle(f)
+            return { background: s.backgroundColor, color: s.color, border: s.borderTopColor, radius: s.borderTopLeftRadius, padding: s.paddingLeft, grow: s.flexGrow }
+        })
+    expect(await look(page.getByLabel('Post for the probe'))).toEqual(await look(page.getByLabel('Link to a reply')))
+})
+
+test('a field keeps its focus, caret and text when its part of the popup changes', async ({ context, worker, extensionId }) => {
+    const page = await context.newPage()
+    await page.goto(popupUrl(extensionId))
+    // the reply-link field, when a round ends and the line above it changes
+    const link = page.getByLabel('Link to a reply')
+    await link.fill(TYPED)
+    await link.press('ArrowLeft')
+    await dev(worker, 'set-local', { last_tick: Date.now() })
+    await expect(page.getByText(/^Last round just now/)).toBeVisible({ timeout: 10000 })
+    await expect(link).toBeFocused()
+    await expect(link).toHaveValue(TYPED)
+    expect(await link.evaluate(f => [f.selectionStart, f.selectionEnd])).toEqual([TYPED.length - 1, TYPED.length - 1])
+    // the probe field, when the probe's answer shows below it (with no X
+    // session here, the probe answers at once without reading X)
+    const post = page.getByLabel('Post for the probe')
+    await post.fill('12345678')
+    await post.press('Enter')
+    await expect(page.locator('pre.dev')).toContainText('skipped')
+    await expect(post).toBeFocused()
+    await expect(post).toHaveValue('12345678')
 })
 
 test('connecting a second account saves its cookies and puts the user’s own back', async ({ context, worker }) => {

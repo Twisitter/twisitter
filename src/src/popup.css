@@ -144,7 +144,8 @@ button.link:hover:not(:disabled) {
     background: none;
     text-decoration: underline;
 }
-input[type='url'] {
+input[type='url'],
+input[type='text'] {
     flex: 1;
     min-width: 0;
     font: inherit;
@@ -154,7 +155,8 @@ input[type='url'] {
     background: var(--bg);
     color: var(--fg);
 }
-input[type='url']:focus {
+input[type='url']:focus,
+input[type='text']:focus {
     border-color: var(--blue);
     outline: 1px solid var(--blue);
     outline-offset: 0;
