@@ -125,3 +125,16 @@ Check now gives a result.
 
 `PRIVACY.md` is the privacy policy's text, and `STORE_PRIVACY.txt` holds the
 answers for the stores' privacy forms.
+
+## Store builds
+
+With Node 20.20.0 (`.nvmrc`), after the install above:
+
+```bash
+yarn build-chrome    # dist-chrome and chrome.zip, for Chrome and Edge
+yarn build-firefox   # dist-firefox and firefox.zip
+yarn source-zip      # source.zip: the committed tree, for Firefox's reviewers
+```
+
+The production build is minified, with no source maps. Build from a clean
+checkout of the commit `source.zip` comes from, so the two match.

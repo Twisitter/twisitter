@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
+    "source-zip": "rm -f source.zip && git archive --format=zip -o source.zip HEAD",
     "preflight": "yarn typecheck && yarn test && yarn build-chrome-e2e && yarn test:e2e"
   },
   "devDependencies": {
