@@ -1,0 +1,59 @@
+/* Shared by the store graphics. X's look, as on the site: black and white,
+   X's greys, heavy tight headings, old Twitter's blue for accents. */
+:root {
+  --fg: #0f1419;
+  --muted: #536471;
+  --line: #eff3f4;
+  --edge: #cfd9de;
+  --card: #f7f9f9;
+  --blue: #1da1f2;
+  --blue-text: #1a8cd8;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 1280px;
+  height: 800px;
+  overflow: hidden;
+  background: #fff;
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+p { margin: 0; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 22px; letter-spacing: -0.03em; }
+.brand img { width: 32px; height: 32px; }
+h1 { margin: 0; font-size: 50px; line-height: 1.05; letter-spacing: -0.04em; font-weight: 800; }
+.cut {
+  background: linear-gradient(105deg, var(--fg) 0 50%, transparent 50% 54%, var(--blue-text) 54%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: 0.04em;
+}
+.lede { margin-top: 18px; color: var(--muted); font-size: 21px; line-height: 1.45; }
+.points { margin: 30px 0 0; padding: 0; list-style: none; }
+.points li { position: relative; margin: 0 0 18px; padding-left: 30px; font-size: 19px; line-height: 1.4; }
+.points li::before {
+  content: ''; position: absolute; left: 2px; top: 6px; width: 16px; height: 16px; border-radius: 4px;
+  background: linear-gradient(45deg, var(--fg) 0 45%, transparent 45% 55%, var(--blue) 55%);
+}
+.points b { font-weight: 700; }
+.points span { color: var(--muted); }
+
+/* a made-up thread, as on twisitter.com */
+.pane { border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: #fff; box-shadow: 0 2px 14px rgba(15, 20, 25, 0.06); }
+.pane .cap { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 800; font-size: 15px; }
+.pane .cap .who { color: var(--muted); font-weight: 500; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fg); }
+.dot.others { background: var(--blue); }
+.tw { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.tw:last-child { border-bottom: 0; }
+.avatar { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #8b98a5; color: #fff; font-weight: 800; font-size: 16px; }
+.avatar.you { background: var(--blue); }
+.avatar.big { background: var(--fg); }
+.tw-body { min-width: 0; flex: 1; }
+.tw-meta { font-size: 15px; line-height: 20px; }
+.tw-meta b { font-weight: 700; }
+.tw-meta span { color: var(--muted); }
+.tw-text { font-size: 15px; line-height: 20px; }
+.tw.post .tw-text { font-size: 17px; line-height: 24px; }
+.fold { display: block; padding: 14px 16px 6px; color: var(--blue-text); font-size: 15px; font-weight: 500; }
+.fold-note { display: block; padding: 0 16px 14px; color: var(--muted); font-size: 13px; }

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Store screenshot 1: the problem and what Twisitter shows. A made-up thread; the note uses the extension's own CSS and words. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="frame.css"><link rel="stylesheet" href="content.css">
+<style>
+  .wrap { padding: 52px 60px 0; }
+  h1 { margin-top: 20px; max-width: 900px; }
+  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 30px; align-items: start; }
+  .twisitter-note { margin-top: 10px; }
+</style></head><body>
+<div class="wrap">
+  <div class="brand"><img src="mark.svg" alt="">Twisitter</div>
+  <h1>See when X <span class="cut">hides</span> your replies from everyone else</h1>
+  <div class="views">
+    <div class="pane">
+      <div class="cap"><span class="dot"></span>Your view <span class="who">signed in as you</span></div>
+      <div class="tw post"><div class="avatar big">P</div><div class="tw-body"><div class="tw-meta"><b>Popular Account</b> <span>· 8h</span></div><p class="tw-text">What's one habit that made learning a new language easier for you?</p></div></div>
+      <div class="tw"><div class="avatar you">Y</div><div class="tw-body"><div class="tw-meta"><b>You</b> <span>@you · 7h</span></div><p class="tw-text">Speaking from day one. Mistakes are how you learn, and an online tutor costs less than a textbook.</p>
+        <div class="twisitter-note" data-state="probable_spam"><strong>Twisitter: Behind "Show probable spam"</strong><span> @yoursecond sees it only after clicking "Show probable spam", in Relevant order, and not at all in Recent order. X shows it to its author as normal. Checked 1 h ago.</span></div></div></div>
+      <div class="tw"><div class="avatar">M</div><div class="tw-body"><div class="tw-meta"><b>Maya</b> <span>· 6h</span></div><p class="tw-text">Watching shows with subtitles in the language, not in English.</p></div></div>
+      <div class="tw"><div class="avatar">S</div><div class="tw-body"><div class="tw-meta"><b>Sam</b> <span>· 5h</span></div><p class="tw-text">Ten minutes of flashcards every morning. No more, no less.</p></div></div>
+    </div>
+    <div class="pane">
+      <div class="cap"><span class="dot others"></span>Everyone else <span class="who">any other account</span></div>
+      <div class="tw post"><div class="avatar big">P</div><div class="tw-body"><div class="tw-meta"><b>Popular Account</b> <span>· 8h</span></div><p class="tw-text">What's one habit that made learning a new language easier for you?</p></div></div>
+      <div class="tw"><div class="avatar">M</div><div class="tw-body"><div class="tw-meta"><b>Maya</b> <span>· 6h</span></div><p class="tw-text">Watching shows with subtitles in the language, not in English.</p></div></div>
+      <div class="tw"><div class="avatar">S</div><div class="tw-body"><div class="tw-meta"><b>Sam</b> <span>· 5h</span></div><p class="tw-text">Ten minutes of flashcards every morning. No more, no less.</p></div></div>
+      <div><span class="fold">Show probable spam</span><span class="fold-note">Your reply is behind this button, after all the others.</span></div>
+    </div>
+  </div>
+</div>
+</body></html>

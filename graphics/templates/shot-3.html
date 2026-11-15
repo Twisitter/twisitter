@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Store screenshot 3: the real welcome page (welcome.png), all three steps done, with made-up accounts. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="frame.css">
+<style>
+  .wrap { display: grid; grid-template-columns: 470px 1fr; gap: 50px; padding: 76px 0 0 64px; }
+  .copy { padding-top: 10px; }
+  .tab { height: 760px; overflow: hidden; position: relative; border-radius: 16px 0 0 0; border: 1px solid var(--line); border-right: 0;
+    box-shadow: 0 12px 44px rgba(15, 20, 25, 0.12); background: #fff; }
+  .tab .bar { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--card); font-size: 14px; font-weight: 600; }
+  .tab .bar img { width: 18px; height: 18px; }
+  .tab .page { display: block; width: 680px; margin: 0 0 0 8px; }
+  .tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(rgba(255,255,255,0), #fff); }
+</style></head><body>
+<div class="wrap">
+  <div class="copy">
+    <div class="brand"><img src="mark.svg" alt="">Twisitter</div>
+    <h1 style="margin-top:22px">Connect a second account on X's own login page</h1>
+    <ul class="points">
+      <li><b>Your own login steps aside</b> <span>while you sign in, and comes back right after.</span></li>
+      <li><b>No passwords:</b> <span>you sign in on X's page, so Twisitter never sees one, or a code.</span></li>
+      <li><b>Ordinary reads only:</b> <span>that account opens posts and their replies, the way anyone browsing would.</span></li>
+    </ul>
+  </div>
+  <div class="tab">
+    <div class="bar"><img src="icon-48.png" alt="">Welcome to Twisitter</div>
+    <img class="page" src="welcome.png" alt="">
+  </div>
+</div>
+</body></html>

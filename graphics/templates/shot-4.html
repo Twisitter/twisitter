@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Store screenshot 4: what Twisitter keeps and never does. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="frame.css">
+<style>
+  body { background: #000; color: #e7e9ea; }
+  .wrap { display: flex; flex-direction: column; align-items: center; padding-top: 104px; text-align: center; }
+  .mark { width: 120px; height: 120px; }
+  h1 { margin-top: 30px; color: #fff; font-size: 56px; }
+  .lede { color: #8b98a5; max-width: 760px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 470px); gap: 18px; margin-top: 44px; text-align: left; }
+  .card { padding: 22px 24px; border: 1px solid #2f3336; border-radius: 18px; background: #16181c; }
+  .card b { display: block; margin-bottom: 6px; color: #fff; font-size: 20px; }
+  .card span { color: #8b98a5; font-size: 17px; line-height: 1.45; }
+  .card b::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 10px; border-radius: 50%; background: var(--blue); vertical-align: 2px; }
+</style></head><body>
+<div class="wrap">
+  <img class="mark" src="mark.svg" alt="">
+  <h1>Everything stays in your browser</h1>
+  <p class="lede">Twisitter is an extension and nothing more. There's no server behind it.</p>
+  <div class="grid">
+    <div class="card"><b>Only x.com</b><span>It talks to x.com and nothing else: no servers, no analytics, no tracking.</span></div>
+    <div class="card"><b>No passwords</b><span>Your second account signs in on X's own page. Twisitter never sees a password or a code.</span></div>
+    <div class="card"><b>Read-only</b><span>It never posts, likes, follows, blocks or changes anything on X.</span></div>
+    <div class="card"><b>Yours to delete</b><span>Disconnect deletes the second account's login. Uninstalling deletes everything.</span></div>
+  </div>
+</div>
+</body></html>

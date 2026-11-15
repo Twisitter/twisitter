@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Store screenshot 2: the real popup (popup.png, captured with made-up replies) under a plain toolbar. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="frame.css">
+<style>
+  .wrap { display: grid; grid-template-columns: 470px 1fr; gap: 50px; padding: 76px 0 0 64px; }
+  .copy { padding-top: 10px; }
+  .browser { position: relative; height: 760px; border-radius: 16px 0 0 0; background: var(--card); border: 1px solid var(--line); border-right: 0; }
+  .toolbar { display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); background: #fff; border-radius: 16px 0 0 0; }
+  .addr { flex: 1; display: flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 999px; background: var(--card); color: var(--muted); font-size: 15px; }
+  .ext { position: relative; width: 28px; height: 28px; margin-right: 140px; }
+  .ext img { width: 28px; height: 28px; }
+  .count { position: absolute; right: -8px; bottom: -5px; padding: 0 5px; border-radius: 8px; background: #c4161c; color: #fff; font-size: 11px; font-weight: 700; line-height: 16px; }
+  .popup { position: absolute; top: 64px; right: 52px; width: 446px; height: 700px; overflow: hidden; border-radius: 12px; background: #fff;
+    box-shadow: 0 12px 44px rgba(15, 20, 25, 0.2), 0 0 0 1px rgba(15, 20, 25, 0.08); }
+  .popup img { display: block; width: 446px; }
+  .popup::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(rgba(255,255,255,0), #fff); }
+</style></head><body>
+<div class="wrap">
+  <div class="copy">
+    <div class="brand"><img src="mark.svg" alt="">Twisitter</div>
+    <h1 style="margin-top:22px">Every reply you post, checked for a month</h1>
+    <ul class="points">
+      <li><b>Two minutes after you post,</b> <span>then after an hour, six hours, a day, and on to a month.</span></li>
+      <li><b>What others see,</b> <span>where your reply sits among theirs, and a likely reason when X's own data gives one.</span></li>
+      <li><b>One notification</b> <span>when X hides a reply, and its history, so a change shows.</span></li>
+    </ul>
+  </div>
+  <div class="browser">
+    <div class="toolbar"><div class="addr">x.com</div><div class="ext"><img src="icon-48.png" alt=""><span class="count">3</span></div></div>
+    <div class="popup"><img src="popup.png" alt=""></div>
+  </div>
+</div>
+</body></html>
