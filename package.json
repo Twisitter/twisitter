@@ -7,18 +7,19 @@
   "type": "module",
   "packageManager": "yarn@4.14.1",
   "scripts": {
-    "clean": "rimraf dist-chrome dist-firefox dist-chrome-dev dist-firefox-dev chrome.zip firefox.zip",
+    "clean": "rimraf dist-chrome dist-firefox dist-chrome-dev dist-firefox-dev dist-chrome-e2e chrome.zip firefox.zip",
     "build-chrome": "rm -f chrome.zip && NODE_ENV=production BROWSER=chrome webpack && (cd dist-chrome && zip -qr ../chrome.zip . -x '*.DS_Store')",
     "build-firefox": "rm -f firefox.zip && NODE_ENV=production BROWSER=firefox webpack && (cd dist-firefox && zip -qr ../firefox.zip . -x '*.DS_Store')",
     "build-chrome-dev": "NODE_ENV=development BROWSER=chrome webpack",
     "build-firefox-dev": "NODE_ENV=development BROWSER=firefox webpack",
+    "build-chrome-e2e": "NODE_ENV=development BROWSER=chrome DIST_DIR=dist-chrome-e2e webpack",
     "build-all": "yarn build-chrome-dev && yarn build-firefox-dev && yarn build-chrome && yarn build-firefox",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
-    "preflight": "yarn typecheck && yarn test && yarn build-chrome-dev && yarn build-firefox-dev && yarn test:e2e"
+    "preflight": "yarn typecheck && yarn test && yarn build-chrome-e2e && yarn test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",

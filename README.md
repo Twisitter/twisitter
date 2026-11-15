@@ -101,14 +101,18 @@ node .yarn/releases/yarn-4.14.1.cjs install
 
 ```bash
 yarn typecheck && yarn test        # unit tests on recorded X answers
-yarn build-chrome-dev && yarn test:e2e   # the dev build in Chromium, X answered by routes
+yarn build-chrome-e2e && yarn test:e2e   # a dev build in Chromium, X answered by routes
 ```
+
+The e2e tests have their own build folder, `dist-chrome-e2e`, so they never
+rebuild a `dist-*-dev` folder loaded in a browser. `yarn preflight` runs all
+four commands.
 
 `tests/fixtures` holds recorded X answers, scrubbed in the page before they
 were saved (`scripts/scrub-x.cjs`): every id is replaced, names and text are
 stand-ins, and only the fields the extension reads are kept.
 
-Dev builds (`dist-*-dev`) add a transport probe and a dev bridge an x.com tab
+Dev builds (`dist-*-dev`, `dist-chrome-e2e`) add a transport probe and a dev bridge an x.com tab
 can drive (`window.postMessage({ source: 'twisitter-dev', cmd, args })`).
 Production builds leave both out.
 

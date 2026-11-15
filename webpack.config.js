@@ -36,7 +36,16 @@ const browserIsFirefox = process.env.BROWSER === 'firefox'
 const builtFor = browserIsFirefox ? 'firefox' : 'chrome'
 // Dev and production builds land in separate folders, so a dev build (the dev
 // bridge, breadcrumbs, source maps) can't be mistaken for a store build.
-const distPath = path.join(__dirname, `dist-${builtFor}${mode === 'development' ? '-dev' : ''}`)
+// DIST_DIR names another folder in the repo for this build: the e2e tests'
+// own dev build is dist-chrome-e2e, so a test run never rebuilds a folder a
+// browser has loaded. Webpack empties the folder first, so the name must start
+// with dist- and can't be one of the four usual folders.
+const usualDists = ['dist-chrome', 'dist-firefox', 'dist-chrome-dev', 'dist-firefox-dev']
+const distDir = process.env.DIST_DIR
+if (distDir !== undefined && (!/^dist-[a-z0-9-]+$/.test(distDir) || usualDists.includes(distDir))) {
+    throw new Error(`DIST_DIR must be a folder name that starts with dist- and isn't ${usualDists.join(', ')}; got "${distDir}".`)
+}
+const distPath = path.join(__dirname, distDir || `dist-${builtFor}${mode === 'development' ? '-dev' : ''}`)
 const distSrcPath = path.join(distPath, 'src')
 
 // Chrome and Edge get the MV3 manifest as written. Firefox gets MV2: a

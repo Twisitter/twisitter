@@ -1,7 +1,8 @@
-// Playwright fixtures: Chromium with the real dev build (dist-chrome-dev)
-// loaded. Nothing reaches X: x.com and api.x.com don't resolve, and every
-// request a test needs is answered by a route, the extension's own
-// background requests included.
+// Playwright fixtures: Chromium with the real dev build loaded, from the
+// tests' own folder (yarn build-chrome-e2e makes dist-chrome-e2e), never a
+// folder a browser profile has loaded. Nothing reaches X: x.com and api.x.com
+// don't resolve, and every request a test needs is answered by a route, the
+// extension's own background requests included.
 
 import { test as base, chromium } from '@playwright/test'
 import fs from 'fs'
@@ -9,7 +10,12 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-export const extensionPath = path.join(__dirname, '..', '..', 'dist-chrome-dev')
+export const extensionPath = path.join(__dirname, '..', '..', 'dist-chrome-e2e')
+// Without a build, Chromium would start with no extension and each test would
+// time out waiting for its worker
+if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
+    throw new Error(`No build in ${extensionPath}: run yarn build-chrome-e2e first.`)
+}
 export const fixture = name => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', `${name}.json`), 'utf8'))
 
 export const IDS = {

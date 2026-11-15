@@ -3,6 +3,7 @@ dist-chrome/
 dist-firefox/
 dist-chrome-dev/
 dist-firefox-dev/
+dist-chrome-e2e/
 chrome.zip
 firefox.zip
 source.zip
