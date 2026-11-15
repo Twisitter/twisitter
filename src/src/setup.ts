@@ -9,7 +9,7 @@
 //     there, and brings the welcome page back once a page says who they are.
 
 import api from './api'
-import { LOGIN_URL, RELOAD_AFTER_LOGIN_MS } from './connect'
+import { isAfterSignIn, LOGIN_URL, RELOAD_AFTER_LOGIN_MS } from './connect'
 import { getLocal, KEYS, setLocal } from './store'
 
 export const SETUP_URL = 'https://x.com/home'
@@ -45,7 +45,8 @@ export async function setupState(): Promise<{ state: SetupState; at: number } | 
 }
 
 // Where X sends a signed-out browser that asks for /home: its front page
-// (seen 2026-11-15), or its login and sign-up flows
+// (seen 2026-11-15), or its login and sign-up flows (/i/flow/login moves on
+// to /i/jf/onboarding/web?mode=login at once, seen the same day)
 export function isSignedOutUrl(url: string): boolean {
     let u: URL
     try {
@@ -53,7 +54,10 @@ export function isSignedOutUrl(url: string): boolean {
     } catch {
         return false
     }
-    return u.origin === 'https://x.com' && (u.pathname === '/' || u.pathname === '/login' || /^\/i\/flow\/(login|signup)\b/.test(u.pathname))
+    return (
+        u.origin === 'https://x.com' &&
+        (u.pathname === '/' || u.pathname === '/login' || /^\/i\/flow\/(login|signup)\b/.test(u.pathname) || /^\/i\/jf\/onboarding\b/.test(u.pathname))
+    )
 }
 
 // Step 1's tab, while it's still on x.com: one the user took elsewhere isn't
@@ -104,9 +108,9 @@ export async function onSetupTabUrl(tabId: number, url: string) {
     const setup = await getSetup()
     if (!setup || setup.tabId !== tabId) return
     if (setup.state === 'opening' && isSignedOutUrl(url)) await setLocal(KEYS.setupTab, { ...setup, state: 'signed_out', at: Date.now() })
-    // X's login flow can land on /home without a page load, and only a page
-    // load says who signed in: reload it then (as connect.ts does)
-    else if (setup.state === 'signing_in' && isXUrl(url) && new URL(url).pathname === '/home')
+    // X can land a new sign-in on /home without a page load, and only a page
+    // load says who signed in: reload it then, and nowhere else (isAfterSignIn)
+    else if (setup.state === 'signing_in' && isAfterSignIn(url))
         setTimeout(() => {
             getSetup()
                 .then(now => (now?.tabId === tabId && now.state === 'signing_in' ? api.tabs.reload(tabId) : undefined))

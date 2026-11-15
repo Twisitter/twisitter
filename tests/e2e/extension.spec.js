@@ -295,6 +295,35 @@ test('connecting a second account saves its cookies and puts the user’s own ba
     expect(rules[0].action.requestHeaders[0].value).toBe('auth_token=second-session; ct0=second-csrf')
 })
 
+test('the sign-in tab is left alone while X’s login flow moves on, and reloaded once it lands on /home', async ({ context, worker }) => {
+    const cookie = (name, value) => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', sameSite: 'None' })
+    await context.route('https://x.com/i/flow/login', route => route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({}) }))
+    await context.route('https://x.com/home', route =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({ head: signedInAs(IDS.viewerUser, 'viewer') }) }),
+    )
+    await context.route(/^https:\/\/x\.com\/i\/api\//, route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{}}' }))
+    await dev(worker, 'set-local', { me: { userId: IDS.authorUser, screenName: 'author', at: Date.now() } })
+    expect(await dev(worker, 'connect-start')).toEqual({ ok: true })
+    const loginTab = () => context.pages().find(p => p.url() === 'https://x.com/i/flow/login')
+    await expect.poll(loginTab, { timeout: 10000 }).toBeTruthy()
+    const tab = loginTab()
+
+    // X moves its login page on without a page load (seen 2026-11-15), and its
+    // code steps do the same: a reload here would start the sign-in over
+    await tab.evaluate(() => {
+        window.stillThisPage = true
+        history.pushState({}, '', '/i/jf/onboarding/web?mode=login')
+    })
+    await tab.waitForTimeout(6000)
+    expect(await tab.evaluate(() => window.stillThisPage)).toBe(true)
+
+    // signed in: X lands on /home without a page load, and only a reload says who
+    await context.addCookies([cookie('auth_token', 'second-session'), cookie('ct0', 'second-csrf')])
+    await tab.evaluate(() => history.pushState({}, '', '/home'))
+    await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
+    expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
+})
+
 test('the welcome page explains the three steps and ticks off what’s done', async ({ context, worker, extensionId }) => {
     await dev(worker, 'set-local', { me: { userId: IDS.authorUser, screenName: 'author', at: Date.now() } })
     const page = await context.newPage()

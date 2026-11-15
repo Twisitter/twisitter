@@ -14,7 +14,7 @@ import {
     getSecondAccount,
     isConnecting,
     isLoginTab,
-    LOGIN_URL,
+    isAfterSignIn,
     RELOAD_AFTER_LOGIN_MS,
     recoverConnect,
     startConnect,
@@ -281,11 +281,11 @@ api.alarms.onAlarm.addListener(alarm => {
 
 // --- the second account's sign-in (connect.ts) ---
 
-// The login tab's next full page load names who signed in (onPageUser). X's
-// login flow can move on without one; then the tab is reloaded.
+// The login tab's next full page load names who signed in (onPageUser). X can
+// land a new sign-in on /home without one; then the tab is reloaded. Nowhere
+// else: X's login flow has addresses of its own (isAfterSignIn).
 api.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    const url = changeInfo.url
-    if (!url || !/^https:\/\/x\.com\//.test(url) || url.startsWith(LOGIN_URL) || /\/i\/flow\//.test(url)) return
+    if (!changeInfo.url || !isAfterSignIn(changeInfo.url)) return
     isLoginTab(tabId)
         .then(isIt => {
             if (isIt)

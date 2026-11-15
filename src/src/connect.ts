@@ -24,9 +24,23 @@ export const CONNECT_RESULT_KEY = 'connect_result'
 export const LOGIN_URL = 'https://x.com/i/flow/login'
 export const CONNECT_TIMEOUT_MS = 15 * 60 * 1000
 export const CONNECT_ALARM = 'connect-timeout'
-// X's login flow may land on its next page without a full page load; then
-// the login tab is reloaded after this long, so its page says who signed in
+// X may land a new sign-in on /home without a full page load; then the login
+// tab is reloaded after this long, so its page says who signed in
 export const RELOAD_AFTER_LOGIN_MS = 4000
+
+// Has a login tab landed where X sends a browser that has just signed in?
+// Only /home: on the way, X's login flow moves through addresses of its own
+// (/i/flow/login moves on to /i/jf/onboarding/web?mode=login at once, seen
+// 2026-11-15, then its code and challenge steps), and a reload there starts
+// the sign-in over.
+export function isAfterSignIn(url: string): boolean {
+    try {
+        const u = new URL(url)
+        return u.origin === 'https://x.com' && u.pathname === '/home'
+    } catch {
+        return false
+    }
+}
 
 interface Pending {
     started: number
