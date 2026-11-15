@@ -9,7 +9,7 @@
 //     there, and brings the welcome page back once a page says who they are.
 
 import api from './api'
-import { isAfterSignIn, LOGIN_URL, RELOAD_AFTER_LOGIN_MS } from './connect'
+import { LOAD_AFTER_SESSION_MS, LOGIN_URL } from './connect'
 import { getLocal, KEYS, setLocal } from './store'
 
 export const SETUP_URL = 'https://x.com/home'
@@ -103,19 +103,32 @@ export async function signInOnX(asker?: Asker): Promise<{ ok: boolean; error?: s
     return { ok: true }
 }
 
-// A new address in step 1's tab
+// A new address in step 1's tab. It only says whether X sent a signed-out
+// browser away from /home, for step 1's wording; nothing is reloaded on an
+// address (X changes them), and a wrong guess here leaves step 1 to its
+// 15-second fallback.
 export async function onSetupTabUrl(tabId: number, url: string) {
     const setup = await getSetup()
     if (!setup || setup.tabId !== tabId) return
     if (setup.state === 'opening' && isSignedOutUrl(url)) await setLocal(KEYS.setupTab, { ...setup, state: 'signed_out', at: Date.now() })
-    // X can land a new sign-in on /home without a page load, and only a page
-    // load says who signed in: reload it then, and nowhere else (isAfterSignIn)
-    else if (setup.state === 'signing_in' && isAfterSignIn(url))
-        setTimeout(() => {
-            getSetup()
-                .then(now => (now?.tabId === tabId && now.state === 'signing_in' ? api.tabs.reload(tabId) : undefined))
-                .catch(() => {})
-        }, RELOAD_AFTER_LOGIN_MS)
+}
+
+// X's session cookie was set while step 1 waits: someone signed in, in step
+// 1's tab or another. Unless a page has said who by then (setupSignedIn),
+// step 1's tab loads x.com/home, which does.
+export async function setupSessionSet(): Promise<void> {
+    const setup = await getSetup()
+    if (!setup) return
+    const { tabId, at } = setup
+    setTimeout(() => {
+        getSetup()
+            .then(async now => {
+                if (now?.tabId !== tabId || now.at !== at) return
+                const onX = await stepTab(now)
+                if (onX != null) await api.tabs.update(onX, { url: SETUP_URL })
+            })
+            .catch(() => {})
+    }, LOAD_AFTER_SESSION_MS)
 }
 
 // Step 1's tab closed: step 1 starts over

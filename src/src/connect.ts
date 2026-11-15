@@ -10,7 +10,11 @@
 //
 // Who signed in comes from the login tab's next page load: every x.com page
 // carries its signed-in account (content.ts reads it), so the sign-in costs
-// the second account no reads beyond X's own pages.
+// the second account no reads beyond X's own pages. The sign-in counts as gone
+// through when X sets its session cookie (the browser had none: the user's own
+// is out), and only then is the login tab touched, to load a page that says
+// who. The login pages' addresses are never read: X changes them (it did on
+// 2026-11-15, and a reload keyed to them broke every sign-in).
 
 import api from './api'
 import { clearXCookies, restoreCookies, xCookies, type StoredCookie } from './cookies'
@@ -24,23 +28,21 @@ export const CONNECT_RESULT_KEY = 'connect_result'
 export const LOGIN_URL = 'https://x.com/i/flow/login'
 export const CONNECT_TIMEOUT_MS = 15 * 60 * 1000
 export const CONNECT_ALARM = 'connect-timeout'
-// X may land a new sign-in on /home without a full page load; then the login
-// tab is reloaded after this long, so its page says who signed in
-export const RELOAD_AFTER_LOGIN_MS = 4000
+export const HOME_URL = 'https://x.com/home'
+// X's session cookie, set once a sign-in goes through. Its name is the one
+// thing the sign-in watches. If X ever renamed it, the sign-in would stand
+// still, never reload anything, and "I've signed in" would still finish it
+// (connectSignedInNow).
+export const SESSION_COOKIE = 'auth_token'
+// how long X gets to load a page of its own after a sign-in goes through,
+// before Twisitter loads x.com/home in that tab
+export const LOAD_AFTER_SESSION_MS = 2000
 
-// Has a login tab landed where X sends a browser that has just signed in?
-// Only /home: on the way, X's login flow moves through addresses of its own
-// (/i/flow/login moves on to /i/jf/onboarding/web?mode=login at once, seen
-// 2026-11-15, then its code and challenge steps), and a reload there starts
-// the sign-in over.
-export function isAfterSignIn(url: string): boolean {
-    try {
-        const u = new URL(url)
-        return u.origin === 'https://x.com' && u.pathname === '/home'
-    } catch {
-        return false
-    }
-}
+// X's session cookie set on x.com (not taken out)
+export const isXSessionSet = (change: { removed: boolean; cookie: { name: string; domain: string } }): boolean =>
+    !change.removed && change.cookie.name === SESSION_COOKIE && /(^|\.)x\.com$/.test(change.cookie.domain)
+
+const hasXSession = async (): Promise<boolean> => !!(await api.cookies.get({ url: 'https://x.com/', name: SESSION_COOKIE }).catch(() => null))
 
 interface Pending {
     started: number
@@ -159,6 +161,36 @@ export const finishConnect = (who: PageUser): Promise<void> =>
         await applySecondAccount()
         await leaveLoginTab(pending.tabId)
     })
+
+// X's session cookie was set. During a sign-in, that's the second account
+// signing in, wherever X's pages are, and the login tab is touched only now.
+// X's own next page load says who signed in (onPageUser); if X loads none in
+// time, the login tab loads x.com/home.
+let loadFor = 0
+export async function connectSessionSet(): Promise<void> {
+    const pending = await readPending()
+    if (!pending || pending.tabId == null || loadFor === pending.started) return
+    const { started, tabId } = pending
+    loadFor = started
+    setTimeout(() => {
+        loadFor = 0
+        readPending()
+            .then(now => (now?.started === started && now.tabId === tabId ? api.tabs.update(tabId, { url: HOME_URL }) : undefined))
+            .catch(() => {})
+    }, LOAD_AFTER_SESSION_MS)
+}
+
+// "I've signed in": the login tab loads x.com/home, whose page says who. With
+// no X session in the browser yet, a page load would take the user off X's
+// login page and lose their place there (a code X sent, say), so that takes
+// `anyway`: the user's word that X already shows the account.
+export async function connectSignedInNow(anyway = false): Promise<{ ok: boolean; error?: string }> {
+    const pending = await readPending()
+    if (!pending || pending.tabId == null) return { ok: false, error: 'not_connecting' }
+    if (!anyway && !(await hasXSession())) return { ok: false, error: 'no_session_yet' }
+    await api.tabs.update(pending.tabId, { url: HOME_URL }).catch(() => {})
+    return { ok: true }
+}
 
 // When the worker starts, on the timeout alarm and on each tick: a sign-in
 // whose tab is gone, or that has run too long, ends now

@@ -2,7 +2,7 @@
 // install, and step 1's background tab follows a signed-out user to X's login
 // page and brings the welcome page back after.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isAfterSignIn, LOGIN_URL, RELOAD_AFTER_LOGIN_MS } from '../../src/src/connect'
+import { LOGIN_URL } from '../../src/src/connect'
 import { addToOpenXTabs, isSignedOutUrl, onSetupTabUrl, openX, SETUP_URL, setupSignedIn, setupState, setupTabClosed, signInOnX } from '../../src/src/setup'
 import { fakeBrowser } from './browser'
 
@@ -32,25 +32,6 @@ describe('a signed-out answer', () => {
             expect(isSignedOutUrl(url), url).toBe(true)
         for (const url of ['https://x.com/home', 'https://x.com/someone/status/1', 'https://x.com/i/flow/loginx', 'https://twitter.com/', 'https://x.com.example/', 'not a url'])
             expect(isSignedOutUrl(url), url).toBe(false)
-    })
-})
-
-describe('a sign-in that has landed', () => {
-    // a login tab is reloaded only here: a reload anywhere in X's login flow
-    // starts the sign-in over (it did, 11-15, at /i/jf/onboarding)
-    it('is X’s /home, and no address of its login flow', () => {
-        for (const url of ['https://x.com/home', 'https://x.com/home?lang=en']) expect(isAfterSignIn(url), url).toBe(true)
-        for (const url of [
-            'https://x.com/i/flow/login',
-            'https://x.com/i/jf/onboarding/web?mode=login',
-            'https://x.com/i/jf/onboarding/web?mode=login&step=email_code',
-            'https://x.com/account/access',
-            'https://x.com/',
-            'https://x.com/homes',
-            'https://twitter.com/home',
-            'not a url',
-        ])
-            expect(isAfterSignIn(url), url).toBe(false)
     })
 })
 
@@ -108,26 +89,6 @@ describe('step 1 of the welcome page', () => {
         await setupSignedIn()
         expect(await setupState()).toBeNull()
         expect(lastCall()).toBe('update 7 front')
-    })
-
-    it('a sign-in that lands on /home without a page load gets one, once', async () => {
-        vi.useFakeTimers()
-        await openX(welcome)
-        await onSetupTabUrl(100, 'https://x.com/')
-        await signInOnX(welcome)
-        // still in X's login flow, wherever it goes: nothing to reload
-        await onSetupTabUrl(100, 'https://x.com/i/flow/login')
-        await onSetupTabUrl(100, 'https://x.com/i/jf/onboarding/web?mode=login')
-        await vi.advanceTimersByTimeAsync(RELOAD_AFTER_LOGIN_MS)
-        expect(lastCall()).toBe(`update 100 ${LOGIN_URL} front`)
-        await onSetupTabUrl(100, SETUP_URL)
-        await vi.advanceTimersByTimeAsync(RELOAD_AFTER_LOGIN_MS)
-        expect(lastCall()).toBe('reload 100')
-        // a page that said who signed in first leaves nothing to reload
-        await onSetupTabUrl(100, SETUP_URL)
-        await setupSignedIn()
-        await vi.advanceTimersByTimeAsync(RELOAD_AFTER_LOGIN_MS)
-        expect(browser.tabCalls.filter(c => c === 'reload 100')).toHaveLength(1)
     })
 
     it('starts over when its tab closes, and only then', async () => {

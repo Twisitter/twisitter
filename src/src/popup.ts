@@ -49,7 +49,12 @@ const CONNECT_ERRORS: Record<string, string> = {
     already_connecting: 'A sign-in is already open.',
     connecting: 'A sign-in is open. Finish it or cancel it first.',
     no_x_tab: "Couldn't open x.com.",
+    not_connecting: 'No sign-in is open.',
 }
+
+// "I've signed in" found no X session yet: the sign-in notice asks before
+// loading the page anyway
+let confirmLoad = false
 
 let busy = ''
 let message: { text: string; bad?: boolean } | null = null
@@ -132,12 +137,32 @@ function accountSection(s: State) {
           ? el('div', { class: 'muted', text: 'Your own X account: not known yet (step 1).' })
           : signInStep(s)
     let second: HTMLElement
+    if (!s.connecting) confirmLoad = false
     if (s.connecting) {
+        // "I've signed in" finds X's session and moves on; without one, it asks
+        // first, as a page load would lose the user's place on X's login page
+        const signedIn = confirmLoad
+            ? el('button', { class: 'primary', text: 'Load it anyway', onclick: () => act('signed-in', () => ask('connect-signed-in', { anyway: true })) })
+            : el('button', {
+                  class: 'primary',
+                  text: 'I’ve signed in',
+                  onclick: () =>
+                      act('signed-in', async () => {
+                          const r = await ask('connect-signed-in')
+                          if (r?.error !== 'no_session_yet') return r
+                          confirmLoad = true
+                          return { ok: true }
+                      }),
+              })
         second = el(
             'div',
             { class: 'notice' },
-            el('div', { text: "Sign in to your second X account on X's login page. Your own login comes back afterwards." }),
-            el('div', { class: 'actions' }, el('button', { text: 'Cancel sign-in', onclick: () => act('cancel', () => ask('connect-cancel')) })),
+            el('div', {
+                text: confirmLoad
+                    ? 'Twisitter doesn’t see a finished sign-in yet. If X already shows your second account, load its page anyway. If not, finish signing in on X’s page first, with the code too if X sends one.'
+                    : 'Sign in to your second X account on X’s login page. Twisitter moves on by itself once you’re signed in, and your own login comes back.',
+            }),
+            el('div', { class: 'actions' }, signedIn, el('button', { text: 'Cancel sign-in', onclick: () => act('cancel', () => ask('connect-cancel')) })),
         )
     } else if (s.second) {
         const status = s.secondStatus

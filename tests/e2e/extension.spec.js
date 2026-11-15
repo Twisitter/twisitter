@@ -295,8 +295,9 @@ test('connecting a second account saves its cookies and puts the user’s own ba
     expect(rules[0].action.requestHeaders[0].value).toBe('auth_token=second-session; ct0=second-csrf')
 })
 
-test('the sign-in tab is left alone while X’s login flow moves on, and reloaded once it lands on /home', async ({ context, worker }) => {
-    const cookie = (name, value) => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', sameSite: 'None' })
+// A second account's sign-in under way: X's login page in the tab the
+// extension opened, and X's /home signed in as the second account
+async function signingIn(context, worker) {
     await context.route('https://x.com/i/flow/login', route => route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({}) }))
     await context.route('https://x.com/home', route =>
         route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({ head: signedInAs(IDS.viewerUser, 'viewer') }) }),
@@ -306,20 +307,42 @@ test('the sign-in tab is left alone while X’s login flow moves on, and reloade
     expect(await dev(worker, 'connect-start')).toEqual({ ok: true })
     const loginTab = () => context.pages().find(p => p.url() === 'https://x.com/i/flow/login')
     await expect.poll(loginTab, { timeout: 10000 }).toBeTruthy()
-    const tab = loginTab()
+    return loginTab()
+}
 
+test('the sign-in tab is left alone wherever X’s login flow goes, and finishes once X’s session cookie appears', async ({ context, worker }) => {
+    const cookie = (name, value) => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', sameSite: 'None' })
+    const tab = await signingIn(context, worker)
     // X moves its login page on without a page load (seen 2026-11-15), and its
-    // code steps do the same: a reload here would start the sign-in over
+    // code steps do the same. No address is a signal, /home included: a reload
+    // keyed to them started every sign-in over.
     await tab.evaluate(() => {
         window.stillThisPage = true
         history.pushState({}, '', '/i/jf/onboarding/web?mode=login')
     })
-    await tab.waitForTimeout(6000)
+    await tab.waitForTimeout(3000)
+    await tab.evaluate(() => history.pushState({}, '', '/home'))
+    // past the 4 s the old address rule waited before reloading
+    await tab.waitForTimeout(5500)
     expect(await tab.evaluate(() => window.stillThisPage)).toBe(true)
 
-    // signed in: X lands on /home without a page load, and only a reload says who
+    // the sign-in goes through: X sets its session cookie, and only then does
+    // the tab load a page, which says who signed in
     await context.addCookies([cookie('auth_token', 'second-session'), cookie('ct0', 'second-csrf')])
-    await tab.evaluate(() => history.pushState({}, '', '/home'))
+    await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
+    expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
+})
+
+test('“I’ve signed in” asks first when X’s session cookie isn’t there, then finishes from X’s page all the same', async ({ context, worker, extensionId }) => {
+    const tab = await signingIn(context, worker)
+    const popup = await context.newPage()
+    await popup.goto(popupUrl(extensionId))
+    // no session cookie (as if X had renamed it): the login page must not be lost to an early click
+    await popup.getByRole('button', { name: 'I’ve signed in' }).click()
+    await expect(popup.getByText('Twisitter doesn’t see a finished sign-in yet.')).toBeVisible()
+    await expect(tab).toHaveURL('https://x.com/i/flow/login')
+    // the user's word: X already shows the account
+    await popup.getByRole('button', { name: 'Load it anyway' }).click()
     await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
     expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
 })

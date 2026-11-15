@@ -22,6 +22,8 @@ export function fakeBrowser() {
     // tabs whose content script answers a ping, and tabs that take no scripts
     const pinged = new Set<number>()
     const refusing = new Set<number>()
+    // x.com's cookies in the browser, by name
+    const cookieJar = new Map<string, string>()
     let nextTab = 100
     const tabById = (id: number) => {
         const t = openTabs.find(x => x.id === id)
@@ -75,6 +77,9 @@ export function fakeBrowser() {
                 return msg?.action === 'ping' ? { ok: true } : undefined
             },
         },
+        cookies: {
+            get: async ({ name }: { url: string; name: string }) => (cookieJar.has(name) ? { name, value: cookieJar.get(name), domain: '.x.com' } : null),
+        },
         scripting: {
             executeScript: async ({ target, files, world }: { target: { tabId: number }; files: string[]; world?: string }) =>
                 void scriptInto(target.tabId, `script ${target.tabId} ${files.join(',')}${world ? ` ${world}` : ''}`),
@@ -100,6 +105,7 @@ export function fakeBrowser() {
         tabCalls,
         pinged,
         refusing,
+        cookieJar,
         answer(table: Record<string, Route>) {
             routes = table
         },
@@ -112,6 +118,7 @@ export function fakeBrowser() {
             tabCalls.length = 0
             pinged.clear()
             refusing.clear()
+            cookieJar.clear()
             nextTab = 100
         },
     }

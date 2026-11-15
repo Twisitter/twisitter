@@ -9,19 +9,20 @@ import {
     cancelConnect,
     CONNECT_ALARM,
     CONNECT_RESULT_KEY,
+    connectSessionSet,
+    connectSignedInNow,
     disconnectSecond,
     finishConnect,
     getSecondAccount,
     isConnecting,
     isLoginTab,
-    isAfterSignIn,
-    RELOAD_AFTER_LOGIN_MS,
+    isXSessionSet,
     recoverConnect,
     startConnect,
 } from './src/connect'
 import { accountTrouble, ensureAlarms, forget, notePageUser, recentReplies, runTick, SOON_ALARM, TICK_ALARM, tickSoon, toNewReply, trackByLink, updateBadge } from './src/monitor'
 import { BEARER_KEY, installFirefoxHeaderListener, OPS_KEY, readsInWindow } from './src/requests'
-import { addToOpenXTabs, onSetupTabUrl, openX, setupSignedIn, setupState, setupTabClosed, signInOnX, type Asker } from './src/setup'
+import { addToOpenXTabs, onSetupTabUrl, openX, setupSessionSet, setupSignedIn, setupState, setupTabClosed, signInOnX, type Asker } from './src/setup'
 import { getLocal, getTracked, KEYS, setLocal, trackReplies, type Me } from './src/store'
 import { runProbe } from './src/probe'
 import { isOpName, isQueryId, isTweetId } from './src/x-api'
@@ -200,6 +201,8 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
             return reply(getLocal<Me | null>(KEYS.me, null).then(me => startConnect(me?.userId || '')))
         case 'connect-cancel':
             return reply(cancelConnect('cancelled').then(() => ({ ok: true })))
+        case 'connect-signed-in':
+            return reply(connectSignedInNow(msg.anyway === true))
         case 'open-x':
             return reply(openX(askerOf(sender)))
         case 'sign-in-x':
@@ -281,21 +284,13 @@ api.alarms.onAlarm.addListener(alarm => {
 
 // --- the second account's sign-in (connect.ts) ---
 
-// The login tab's next full page load names who signed in (onPageUser). X can
-// land a new sign-in on /home without one; then the tab is reloaded. Nowhere
-// else: X's login flow has addresses of its own (isAfterSignIn).
-api.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (!changeInfo.url || !isAfterSignIn(changeInfo.url)) return
-    isLoginTab(tabId)
-        .then(isIt => {
-            if (isIt)
-                setTimeout(() => {
-                    isLoginTab(tabId)
-                        .then(still => (still ? api.tabs.reload(tabId) : undefined))
-                        .catch(() => {})
-                }, RELOAD_AFTER_LOGIN_MS)
-        })
-        .catch(() => {})
+// A sign-in went through when X sets its session cookie, wherever X's login
+// pages are: only then is a login tab touched, to load a page that says who
+// signed in (the second account's here, or step 1's own)
+api.cookies.onChanged.addListener(change => {
+    if (!isXSessionSet(change)) return
+    connectSessionSet().catch(() => {})
+    setupSessionSet().catch(() => {})
 })
 api.tabs.onRemoved.addListener(tabId => {
     isLoginTab(tabId)

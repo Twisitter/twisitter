@@ -78,7 +78,12 @@ that against.
   account's cookies stay in the extension and ride only on the extension's own
   marked GET requests, through a declarativeNetRequest session rule (Chrome,
   Edge) or a blocking webRequest listener (Firefox). Those requests omit the
-  browser's cookies, so X's answers can't touch the user's session.
+  browser's cookies, so X's answers can't touch the user's session. The
+  sign-in counts as done when X sets its session cookie (`auth_token`). Only
+  then does the extension touch the login tab, loading `x.com/home` there,
+  whose page says who signed in. It never reads the login pages' addresses:
+  X changes them. If that cookie were ever renamed, "I've signed in" in the
+  popup still finishes the sign-in once the user confirms.
 - **Only ordinary reads.** The second account opens posts and their replies
   (including "Show probable spam"), a post's hidden-replies page and replies
   opened directly: what anyone browsing X opens. No searches. Who is signed in

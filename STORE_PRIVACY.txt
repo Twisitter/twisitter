@@ -19,7 +19,7 @@ x.com only. The background reads the pages X's own web app reads: a post and its
 
 COOKIES
 
-Used only when the user connects an optional second X account. The extension saves the user's own x.com cookies and clears them from the browser, so the user can sign in to their second account on X's own login page. Once that account is signed in, it saves that account's x.com cookies for the extension's own requests, clears them from the browser, and puts the user's own cookies back. The second account's cookies stay in the extension's storage and are only ever sent to x.com, never to the developer or any third party.
+Used when the user connects an optional second X account. The extension saves the user's own x.com cookies and clears them from the browser, so the user can sign in to their second account on X's own login page. It watches for X to set its sign-in cookie, to know when that sign-in has finished (and, from the welcome page, when a user who wasn't signed in to X has signed in). Once the second account is signed in, it saves that account's x.com cookies for the extension's own requests, clears them from the browser, and puts the user's own cookies back. The second account's cookies stay in the extension's storage and are only ever sent to x.com, never to the developer or any third party.
 
 
 DECLARATIVENETREQUESTWITHHOSTACCESS
