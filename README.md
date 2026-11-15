@@ -14,8 +14,10 @@ why.
 For each reply it watches, the check reads, as the second account:
 
 1. the parent post's reply list in **Relevant** order, following "Show probable
-   spam" (`ShowMoreThreads`) cursors and a few pages of more replies. Recent
-   order leaves the probable-spam replies out entirely, so it isn't used;
+   spam" (`ShowMoreThreads`) cursors and a few pages of more replies: up to
+   four pages of the list (X puts the button on the page after the last
+   replies) and two pages behind the button. Recent order leaves the
+   probable-spam replies out entirely, so it isn't used;
 2. if the reply isn't there, `<post>/hidden` (`ModeratedTimeline`), the replies
    the post's author hid;
 3. if it isn't there either, the reply opened directly.
@@ -53,7 +55,10 @@ that against.
   opened directly: what anyone browsing X opens. No searches. Who is signed in
   comes from x.com's own pages, not from extra requests.
 - **Pace.** A reply is checked about two minutes after it's seen, then at an
-  hour, six hours, a day, three days, a week, two weeks and a month. One reply
+  hour, six hours, a day, three days, a week, two weeks and a month. A check
+  that stops early (X asks for a pause, an error) tries again in a quarter
+  hour, then half as often each time, and leaves the last answer standing
+  meanwhile. Reads as the user wait while a second account signs in. One reply
   per five-minute round; reads go one at a time, 2.5 s apart, at most 60 per 15
   minutes per account (X allows 300 `TweetDetail` reads per 15 minutes). The
   Replies tab adds replies from the last 30 days; older ones come in by link.

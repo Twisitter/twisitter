@@ -62,7 +62,8 @@ test('a check as the second account: a reply listed only for its author shows as
             },
         },
     })
-    // the header rule follows the stored account (installed at start and before each read)
+    // the header rule follows the stored account (set when it's stored, and
+    // put back by a read if the browser dropped it)
     const report = await dev(worker, 'tick', { only: IDS.missingReply })
     expect(report.checked).toEqual([expect.objectContaining({ id: IDS.missingReply, state: 'missing' })])
 
@@ -182,6 +183,39 @@ test('an x.com page tells the extension who the user is', async ({ context, work
     await popup.goto(popupUrl(extensionId))
     await expect(popup.getByText('@author')).toBeVisible()
     await expect(popup.getByRole('button', { name: 'Connect a second account' })).toBeEnabled()
+})
+
+test('a message from the page can’t pass itself off as another kind', async ({ context, worker }) => {
+    await context.route('https://x.com/home', route =>
+        route.fulfill({
+            status: 200,
+            contentType: 'text/html',
+            body: fakeXPage({
+                head: signedInAs(IDS.authorUser, 'author'),
+                // a script in the page: a type the content script passes on,
+                // with an action of its own beside it
+                script: `addEventListener('load', () => setTimeout(() => window.postMessage({ source: 'twisitter-page', type: 'learned-op', action: 'page-user', userId: '999', screenName: 'mallory' }, location.origin), 300))`,
+            }),
+        }),
+    )
+    await context.route(/^https:\/\/x\.com\/i\/api\//, route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{}}' }))
+    const page = await context.newPage()
+    await page.goto('https://x.com/home')
+    await expect.poll(async () => (await dev(worker, 'state')).me?.screenName, { timeout: 10000 }).toBe('author')
+    // time for the page's own message to arrive and be handled
+    await page.waitForTimeout(1500)
+    expect((await dev(worker, 'state')).me).toMatchObject({ userId: IDS.authorUser, screenName: 'author' })
+})
+
+test('the popup keeps a reply link being typed when it redraws', async ({ context, extensionId }) => {
+    const page = await context.newPage()
+    await page.goto(popupUrl(extensionId))
+    const field = page.getByLabel('Link to a reply')
+    await field.fill('https://x.com/someone/status/12')
+    // the popup redraws every 4 seconds
+    await page.waitForTimeout(4500)
+    await expect(field).toHaveValue('https://x.com/someone/status/12')
+    await expect(field).toBeFocused()
 })
 
 test('connecting a second account saves its cookies and puts the user’s own back', async ({ context, worker }) => {

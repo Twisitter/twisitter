@@ -14,6 +14,7 @@
 
 import api from './api'
 import { browserCsrf, cookieHeaderFor, csrfFrom, type StoredCookie } from './cookies'
+import { KEYS } from './store'
 import { apiHeaders, DEFAULT_OPS, graphqlUrl, readAnswer, WEB_BEARER, type OpName, type Operation, type XAnswer } from './x-api'
 
 export const MARKER = 'tw_as'
@@ -100,23 +101,50 @@ async function send(url: string, init: RequestInit): Promise<XAnswer> {
     }
 }
 
+// Reads that were never sent, with why (a sign-in open, the second account
+// changed). They classify as errors: the check stops and tries again later,
+// and no account's status changes on their account.
+const notSent = (why: string): XAnswer => ({ status: 0, failure: `not sent: ${why}` })
+
+// A second account's sign-in in progress, as connect.ts saves it (its
+// isConnecting reads the same record the same way)
+export const pendingSignIn = async (): Promise<{ started: number; main: unknown[]; mainUserId: string; tabId?: number } | null> => {
+    const { [KEYS.connectPending]: p } = (await api.storage.local.get(KEYS.connectPending)) as any
+    return p && Number(p.started) > 0 && Array.isArray(p.main) ? p : null
+}
+// While a second account signs in, the browser holds none of the user's X
+// cookies, or that account's: a read with them says nothing about the user
+const signInOpen = async (): Promise<boolean> => !!(await pendingSignIn())
+
 export async function readAsUser(name: OpName, variables: object): Promise<XAnswer> {
     const ops = await currentOps()
     return paced(async () => {
+        if (await signInOpen()) return notSent('a second account is signing in')
         await logRead('user')
-        return send(graphqlUrl(name, ops[name], variables), {
+        const answer = await send(graphqlUrl(name, ops[name], variables), {
             credentials: 'include',
             headers: apiHeaders(await browserCsrf(), await currentBearer()),
         })
+        // a sign-in that began meanwhile may have taken the cookies it went with
+        return (await signInOpen()) ? notSent('a second account began signing in') : answer
     })
+}
+
+// The second account as stored now (connect.ts saves it at a sign-in)
+export const getSecondAccount = async (): Promise<SecondAccount | null> => {
+    const { [KEYS.second]: a } = (await api.storage.local.get(KEYS.second)) as any
+    return a && typeof a.screenName === 'string' && isToken(a.token) && Array.isArray(a.cookies) ? a : null
 }
 
 export async function readAsSecond(account: SecondAccount, name: OpName, variables: object): Promise<XAnswer> {
     const ops = await currentOps()
     return paced(async () => {
+        // a round that began before a Disconnect or a new sign-in mustn't go
+        // on reading as the account it began with
+        if ((await getSecondAccount())?.token !== account.token) return notSent('the second account changed')
+        // Chrome: the browser keeps the header rule only until it closes
+        await syncSecondAccountRule()
         await logRead('second')
-        // Chrome: the rule must carry the account's cookies as they are now
-        await installSecondAccountRule(account)
         return send(markedUrl(graphqlUrl(name, ops[name], variables), account.token), {
             credentials: 'omit',
             headers: apiHeaders(csrfFrom(account.cookies), await currentBearer()),
@@ -126,41 +154,46 @@ export async function readAsSecond(account: SecondAccount, name: OpName, variabl
 
 // --- the header rules ---
 
-// Chrome and Edge: the rule that puts the second account's cookies on the
-// extension's own marked GETs (tabId -1: not from any tab). Session rules
-// don't outlive the browser, so background.ts installs it on every start.
-let installedFor = ''
-export async function installSecondAccountRule(account: SecondAccount | null) {
-    if (__BUILT_FOR__ !== 'chrome') return
-    const dnr = (globalThis as any).chrome?.declarativeNetRequest
-    if (!dnr?.updateSessionRules) return
-    const header = account ? cookieHeaderFor(account.cookies, 'x.com') : ''
-    const key = account && header ? `${account.token}:${header}` : ''
-    if (key === installedFor) return
-    await dnr.updateSessionRules({
-        removeRuleIds: [SECOND_RULE_ID],
-        addRules:
-            account && header
-                ? [
-                      {
-                          id: SECOND_RULE_ID,
-                          priority: 3,
-                          action: {
-                              type: 'modifyHeaders',
-                              requestHeaders: [{ header: 'cookie', operation: 'set', value: header }],
-                          },
-                          condition: {
-                              regexFilter: markerPattern(account.token),
-                              resourceTypes: ['xmlhttprequest', 'other'],
-                              tabIds: [-1],
-                              initiatorDomains: [chrome.runtime.id],
-                              requestMethods: ['get'],
-                          },
-                      },
-                  ]
-                : [],
+const ruleFor = (account: SecondAccount, header: string) => ({
+    id: SECOND_RULE_ID,
+    priority: 3,
+    action: {
+        type: 'modifyHeaders',
+        requestHeaders: [{ header: 'cookie', operation: 'set', value: header }],
+    },
+    condition: {
+        regexFilter: markerPattern(account.token),
+        resourceTypes: ['xmlhttprequest', 'other'],
+        tabIds: [-1],
+        initiatorDomains: [chrome.runtime.id],
+        requestMethods: ['get'],
+    },
+})
+const sameRule = (a: any, b: any): boolean =>
+    !a === !b && (!a || (a.condition?.regexFilter === b.condition?.regexFilter && a.action?.requestHeaders?.[0]?.value === b.action?.requestHeaders?.[0]?.value))
+
+// Chrome and Edge: the session rule that puts the second account's cookies on
+// the extension's own marked GETs (tabId -1: not from any tab), kept in step
+// with the stored account one change at a time. It always follows the account
+// stored now, never one a caller began with, so a round that began before a
+// Disconnect can't bring the old account's rule back. Session rules outlive
+// the worker but not the browser, so what's there is read, not remembered.
+let ruleChain: Promise<unknown> = Promise.resolve()
+export function syncSecondAccountRule(): Promise<void> {
+    const next = ruleChain.then(async () => {
+        if (__BUILT_FOR__ !== 'chrome') return
+        const dnr = (globalThis as any).chrome?.declarativeNetRequest
+        if (!dnr?.updateSessionRules) return
+        const account = await getSecondAccount()
+        const header = account ? cookieHeaderFor(account.cookies, 'x.com') : ''
+        const want = account && header ? ruleFor(account, header) : null
+        const rules: any[] = (await dnr.getSessionRules?.().catch(() => null)) || []
+        const have = rules.find(r => r?.id === SECOND_RULE_ID) || null
+        if (dnr.getSessionRules && sameRule(have, want)) return
+        await dnr.updateSessionRules({ removeRuleIds: [SECOND_RULE_ID], addRules: want ? [want] : [] })
     })
-    installedFor = key
+    ruleChain = next.catch(() => {})
+    return next
 }
 
 // Firefox: a blocking webRequest listener does what Chrome's rule does. It's

@@ -45,11 +45,15 @@ const CONNECT_ERRORS: Record<string, string> = {
     timed_out: 'The sign-in took more than 15 minutes, so it ended. Your own login is back.',
     no_tab: "Couldn't open X's login page.",
     already_connecting: 'A sign-in is already open.',
+    connecting: 'A sign-in is open. Finish it or cancel it first.',
 }
 
 let busy = ''
 let message: { text: string; bad?: boolean } | null = null
 let devOutput = ''
+// what's typed in the reply-link field, kept across redraws
+let linkDraft = ''
+const LINK_ID = 'reply-link'
 
 async function act(name: string, run: () => Promise<any>) {
     busy = name
@@ -71,7 +75,14 @@ function accountSection(s: State) {
               {},
               'You: ',
               el('strong', { text: `@${s.me.screenName}` }),
-              s.userStatus?.state === 'signed_out' ? el('span', { class: 'muted', text: ' (X stopped taking this sign-in; open x.com to sign in again)' }) : '',
+              s.userStatus?.state === 'signed_out'
+                  ? el('span', { class: 'muted', text: ' (X stopped taking this sign-in; open x.com to sign in again)' })
+                  : s.userStatus?.state === 'other_account'
+                    ? el('span', {
+                          class: 'muted',
+                          text: ` (x.com in this browser is signed in as ${s.userStatus.detail || 'your second account'} now; checks that need your own view wait until it's you again)`,
+                      })
+                    : '',
           )
         : el('div', { class: 'muted' }, 'Open x.com in this browser, signed in to your own account.')
     let second: HTMLElement
@@ -134,7 +145,16 @@ function accountSection(s: State) {
 }
 
 function checkSection(s: State) {
-    const input = el('input', { type: 'url', placeholder: 'Link to a reply on x.com', 'aria-label': 'Link to a reply' }) as HTMLInputElement
+    const input = el('input', {
+        type: 'url',
+        id: LINK_ID,
+        placeholder: 'Link to a reply on x.com',
+        'aria-label': 'Link to a reply',
+        value: linkDraft,
+        oninput: () => {
+            linkDraft = input.value
+        },
+    }) as HTMLInputElement
     return el(
         'section',
         {},
@@ -142,7 +162,11 @@ function checkSection(s: State) {
             'div',
             { class: 'row' },
             el('div', { class: 'small muted', text: s.lastTick ? `Last round ${ago(s.lastTick)} · ${s.reads.second} reads as the second account in 15 min` : 'No checks yet' }),
-            el('button', { text: busy === 'check' ? 'Checking…' : 'Check now', disabled: !s.second || !!busy ? 'disabled' : undefined, onclick: () => act('check', () => ask('check-now')) }),
+            el('button', {
+                text: busy === 'check' ? 'Checking…' : 'Check now',
+                disabled: !s.second || !!busy || s.connecting ? 'disabled' : undefined,
+                onclick: () => act('check', () => ask('check-now')),
+            }),
         ),
         el(
             'form',
@@ -152,11 +176,18 @@ function checkSection(s: State) {
                 onsubmit: (e: Event) => {
                     e.preventDefault()
                     const url = input.value.trim()
-                    if (url) act('add', () => ask('add-link', { url }))
+                    if (url)
+                        act('add', async () => {
+                            const r = await ask('add-link', { url })
+                            // a link that went in leaves the field for the next one
+                            if (r?.ok) linkDraft = ''
+                            return r
+                        })
                 },
             },
             input,
-            el('button', { type: 'submit', text: busy === 'add' ? 'Checking…' : 'Check reply', disabled: busy ? 'disabled' : undefined }),
+            // reads as the user wait while a second account signs in
+            el('button', { type: 'submit', text: busy === 'add' ? 'Checking…' : 'Check reply', disabled: busy || s.connecting ? 'disabled' : undefined }),
         ),
     )
 }
@@ -179,8 +210,9 @@ function replyItem(t: Tracked) {
                 { class: `why small ${finding ? '' : 'muted'}` },
                 finding || state !== 'listed' ? explain(state, last.viewer, last.section, last.authorSees) + ' ' : '',
                 el('span', { class: 'muted', text: `Checked ${ago(last.at)} as ${last.viewer}.` }),
-                last.stop ? el('span', { class: 'muted', text: ` (${last.detail})` }) : '',
+                last.stop || state === 'unknown' ? el('span', { class: 'muted', text: ` (${last.detail})` }) : '',
             ),
+        t.lastTry && el('div', { class: 'small muted', text: `Checked again ${ago(t.lastTry.at)}, but that check couldn't say (${t.lastTry.detail}).` }),
         el(
             'div',
             { class: 'actions small' },
@@ -282,7 +314,19 @@ async function render() {
         s && repliesSection(s),
         s?.dev && devSection(),
     ].filter(Boolean) as Node[]
+    // a redraw mustn't take the reply-link field from someone typing in it
+    const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.id === LINK_ID ? document.activeElement : null
+    const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null
     root.replaceChildren(...kids)
+    const field = typing && (document.getElementById(LINK_ID) as HTMLInputElement | null)
+    if (field) {
+        field.focus()
+        try {
+            if (caret && caret[0] !== null && caret[1] !== null) field.setSelectionRange(caret[0], caret[1])
+        } catch {
+            /* the field takes no selection */
+        }
+    }
 }
 
 if (location.hash || window.innerWidth > 500) document.body.classList.add('tab')

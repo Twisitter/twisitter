@@ -19,7 +19,7 @@ import {
     recoverConnect,
     startConnect,
 } from './src/connect'
-import { accountTrouble, ensureAlarms, forget, recentReplies, runTick, SOON_ALARM, TICK_ALARM, tickSoon, toNewReply, trackByLink, updateBadge } from './src/monitor'
+import { accountTrouble, ensureAlarms, forget, notePageUser, recentReplies, runTick, SOON_ALARM, TICK_ALARM, tickSoon, toNewReply, trackByLink, updateBadge } from './src/monitor'
 import { BEARER_KEY, installFirefoxHeaderListener, OPS_KEY, readsInWindow } from './src/requests'
 import { getLocal, getTracked, KEYS, setLocal, trackReplies, type Me } from './src/store'
 import { runProbe } from './src/probe'
@@ -30,6 +30,14 @@ installFirefoxHeaderListener()
 const isXTab = (sender: chrome.runtime.MessageSender) =>
     !!sender.tab && /^https:\/\/x\.com\//.test(String(sender.url || sender.tab.url || ''))
 const isOwnPage = (sender: chrome.runtime.MessageSender) => String(sender.url || '').startsWith(api.runtime.getURL(''))
+
+// The extension reads as the user with the browser's main cookies. A private
+// window or a Firefox container keeps cookies of its own, so who its pages are
+// signed in as says nothing about whose session those reads carry.
+const inMainCookieStore = (tab: chrome.tabs.Tab | undefined): boolean => {
+    const store = (tab as { cookieStoreId?: string } | undefined)?.cookieStoreId
+    return !!tab && !tab.incognito && (store === undefined || store === 'firefox-default' || store === '0')
+}
 
 const isFlags = (o: unknown): o is Record<string, boolean> =>
     !!o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length < 200 && Object.values(o).every(v => typeof v === 'boolean')
@@ -57,14 +65,19 @@ const pageTweet = (t: any) =>
           }
         : null
 
-async function onCreatedReply(msg: any) {
+async function onCreatedReply(msg: any, sender: chrome.runtime.MessageSender) {
     if (await isConnecting()) return
     const t = pageTweet(msg)
     if (!t?.inReplyTo) return
     const me = await getLocal<Me | null>(KEYS.me, null)
     // the page posts as whoever is signed in; that's the user unless X says otherwise
     if (me && t.authorId && me.userId !== t.authorId) return
-    if (!me && t.authorId && t.screenName) await setLocal(KEYS.me, { userId: t.authorId, screenName: t.screenName, at: 0 })
+    if (!me && t.authorId && t.screenName) {
+        // never the second account, and only a page on the browser's main cookies
+        const second = await getSecondAccount()
+        if (second?.userId === t.authorId || !inMainCookieStore(sender.tab)) return
+        await setLocal(KEYS.me, { userId: t.authorId, screenName: t.screenName, at: 0 })
+    }
     const reply = toNewReply(t, 'posted')
     if (reply && (await trackReplies([reply])).length) tickSoon()
 }
@@ -78,7 +91,9 @@ async function onRepliesTab(msg: any) {
 }
 
 // An x.com page said who it's signed in as. During a sign-in, the login
-// tab's page names the second account; otherwise any page names the user.
+// tab's page names the second account; otherwise a page on the browser's main
+// cookies names the user, or says the browser is signed in to the second
+// account for now (notePageUser).
 async function onPageUser(msg: any, sender: chrome.runtime.MessageSender) {
     if (!isTweetId(msg.userId) || typeof msg.screenName !== 'string' || !/^\w{1,15}$/.test(msg.screenName)) return
     const who = { userId: msg.userId, screenName: msg.screenName }
@@ -86,10 +101,8 @@ async function onPageUser(msg: any, sender: chrome.runtime.MessageSender) {
         if (await isLoginTab(sender.tab?.id)) await finishConnect(who)
         return
     }
-    const me = await getLocal<Me | null>(KEYS.me, null)
-    if (!me || me.userId !== who.userId || me.screenName !== who.screenName) await setLocal(KEYS.me, { ...who, at: Date.now() })
-    // a page signed in is a session X takes
-    await api.storage.local.remove(KEYS.userStatus)
+    if (!inMainCookieStore(sender.tab)) return
+    await notePageUser(who)
 }
 
 // The in-page notes: replies X hides from others, by id
@@ -152,7 +165,7 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
                 if (typeof msg.value === 'string' && /^[A-Za-z0-9%_-]{40,200}$/.test(msg.value)) return reply(setLocal(BEARER_KEY, msg.value).then(() => ({ ok: true })))
                 return
             case 'created-reply':
-                return reply(onCreatedReply(msg).then(() => ({ ok: true })))
+                return reply(onCreatedReply(msg, sender).then(() => ({ ok: true })))
             case 'replies-tab':
                 return reply(onRepliesTab(msg).then(() => ({ ok: true })))
             case 'page-user':
@@ -216,7 +229,11 @@ async function devAction(cmd: string, args: any): Promise<unknown> {
             return forget(String(args?.id || ''))
         case 'set-local':
             // seeds for tests: only the extension's own keys
-            if (args && typeof args === 'object' && Object.keys(args).every(k => /^[a-z_]+$/.test(k))) await api.storage.local.set(args)
+            if (args && typeof args === 'object' && Object.keys(args).every(k => /^[a-z_]+$/.test(k))) {
+                await api.storage.local.set(args)
+                // as a sign-in does: the header rules follow the stored account
+                if (KEYS.second in args) await applySecondAccount()
+            }
             return { ok: true }
         case 'disconnect':
             return disconnectSecond().then(() => ({ ok: true }))

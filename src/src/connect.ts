@@ -14,10 +14,12 @@
 
 import api from './api'
 import { clearXCookies, restoreCookies, xCookies, type StoredCookie } from './cookies'
-import { installSecondAccountRule, newToken, setAccountForHeaders, type SecondAccount } from './requests'
+import { getSecondAccount, newToken, pendingSignIn, setAccountForHeaders, syncSecondAccountRule, type SecondAccount } from './requests'
 import { KEYS, getLocal, setLocal } from './store'
 
-export const CONNECT_KEY = 'connect_pending'
+export { getSecondAccount }
+
+export const CONNECT_KEY = KEYS.connectPending
 export const CONNECT_RESULT_KEY = 'connect_result'
 export const LOGIN_URL = 'https://x.com/i/flow/login'
 export const CONNECT_TIMEOUT_MS = 15 * 60 * 1000
@@ -44,22 +46,15 @@ export interface PageUser {
     screenName: string
 }
 
-const readPending = async (): Promise<Pending | null> => {
-    const p: any = await getLocal(CONNECT_KEY, null)
-    return p && Number(p.started) > 0 && Array.isArray(p.main) ? p : null
-}
+const readPending = pendingSignIn as () => Promise<Pending | null>
 export const isConnecting = async (): Promise<boolean> => !!(await readPending())
 export const isLoginTab = async (tabId: number | undefined) => tabId != null && (await readPending())?.tabId === tabId
 
-export const getSecondAccount = async (): Promise<SecondAccount | null> => {
-    const a: any = await getLocal(KEYS.second, null)
-    return a && typeof a.screenName === 'string' && /^[0-9a-f]{32}$/.test(a.token) && Array.isArray(a.cookies) ? a : null
-}
 // Keep both header rules in step with the stored account
 export async function applySecondAccount() {
     const account = await getSecondAccount()
     setAccountForHeaders(account)
-    await installSecondAccountRule(account).catch(() => {})
+    await syncSecondAccountRule().catch(() => {})
 }
 
 const setResult = (r: Omit<ConnectResult, 't'>) => setLocal(CONNECT_RESULT_KEY, { ...r, t: Date.now() })

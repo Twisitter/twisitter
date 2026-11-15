@@ -26,6 +26,11 @@ export interface Tracked {
     nextCheckAt: number
     checks: number
     last?: CheckRecord
+    // the latest check, when it couldn't say ("unknown"): `last` keeps the
+    // answer before it
+    lastTry?: CheckRecord
+    // checks in a row that stopped early (a rate limit, a sign-in, an error)
+    stops?: number
 }
 
 export interface Me {
@@ -43,6 +48,8 @@ export const KEYS = {
     notified: 'notified',
     lastTick: 'last_tick',
     repliesTabAt: 'replies_tab_at',
+    // a second account's sign-in in progress (connect.ts)
+    connectPending: 'connect_pending',
 } as const
 
 export const MINUTE = 60 * 1000
@@ -56,6 +63,18 @@ export const MAX_TRACKED = 300
 export const nextCheckAt = (capturedAt: number, now: number): number => {
     const step = SCHEDULE_MS.find(ms => capturedAt + ms > now + 30 * 1000)
     return step === undefined ? Number.MAX_SAFE_INTEGER : capturedAt + step
+}
+
+// After a check that stopped early: a quarter hour, then twice as long each
+// time in a row, up to half a day, and never later than the next step. Past
+// the month, a reply that keeps stopping is left after seven tries in a row.
+export const RETRY_FIRST_MS = 15 * MINUTE
+export const RETRY_MAX_MS = 12 * HOUR
+const RETRIES_PAST_SCHEDULE = 7
+export const retryAt = (capturedAt: number, stops: number, now: number): number => {
+    const scheduled = nextCheckAt(capturedAt, now)
+    if (scheduled === Number.MAX_SAFE_INTEGER && stops > RETRIES_PAST_SCHEDULE) return scheduled
+    return Math.min(now + Math.min(RETRY_FIRST_MS * 2 ** Math.max(0, stops - 1), RETRY_MAX_MS), scheduled)
 }
 
 const locks = new Map<string, Promise<unknown>>()

@@ -47,8 +47,12 @@ export interface ReplyRef {
     parentId: string
 }
 
-// Small threads matter most; a long one isn't read to its end
-export const MAX_THREAD_PAGES = 3
+// Small threads matter most; a long one isn't read to its end. The list
+// itself: three pages of replies, and the page after them, where X puts "Show
+// probable spam" when it keeps replies there.
+export const MAX_THREAD_PAGES = 4
+// The part behind "Show probable spam": its first page and one more
+export const MAX_FOLD_PAGES = 2
 
 interface ThreadWalk {
     found: boolean
@@ -66,20 +70,39 @@ interface ThreadWalk {
 // Reads the parent's reply list until the reply turns up or the list ends.
 // "Show probable spam" cursors go first: they cost one read and hold the
 // replies X sets apart. A page that adds no tweets ends the paging, since a
-// followed bottom cursor can return yet another bottom cursor.
-export async function walkThread(read: Read, parentId: string, replyId: string, maxPages = MAX_THREAD_PAGES): Promise<ThreadWalk> {
+// followed bottom cursor can return yet another bottom cursor. The list and
+// the part behind the button each have their own page limit (maxPages,
+// maxFoldPages), so the empty page that carries the button doesn't use up
+// the reads the part behind it needs.
+export async function walkThread(
+    read: Read,
+    parentId: string,
+    replyId: string,
+    maxPages = MAX_THREAD_PAGES,
+    maxFoldPages = MAX_FOLD_PAGES,
+): Promise<ThreadWalk> {
     const walk: ThreadWalk = { found: false, behindPrompt: false, section: '', truncated: false, reads: 0 }
     const seenTweets = new Set<string>()
     const seenCursors = new Set<string>()
-    const queue: Array<{ cursor?: TimelineCursor }> = [{}]
+    // fold: the page goes on with the part behind "Show probable spam";
+    // action: that button's words
+    const queue: Array<{ cursor?: TimelineCursor; fold?: boolean; action?: string }> = [{}]
+    const pagesRead = { list: 0, fold: 0 }
     while (queue.length) {
-        if (walk.reads >= maxPages) {
+        const entry = queue.shift()!
+        const { cursor } = entry
+        // the page goes on with the part behind "Show probable spam": reached
+        // through that button, or through a bottom cursor found inside that
+        // part (its later pages carry no heading)
+        const pageFold = !!entry.fold || (!!cursor && isPromptCursor(cursor))
+        // past the pages a check reads of that part: the list went on there
+        if (pageFold ? pagesRead.fold >= maxFoldPages : pagesRead.list >= maxPages) {
             walk.truncated = true
-            break
+            continue
         }
-        const { cursor } = queue.shift()!
         const answer = await read('TweetDetail', tweetDetailVariables(parentId, cursor?.value))
         walk.reads++
+        pagesRead[pageFold ? 'fold' : 'list']++
         const kind = classifyAnswer(answer)
         if (kind !== 'ok') {
             walk.stop = kind
@@ -91,25 +114,37 @@ export async function walkThread(read: Read, parentId: string, replyId: string, 
         fresh.forEach(t => seenTweets.add(t.id))
         if (!cursor) {
             walk.parent = page.tweets.find(t => t.id === parentId)
+            // a reply list starts with its post: an answer without it is
+            // something else, and says nothing about the replies
+            if (!walk.parent) {
+                walk.stop = 'error'
+                walk.stopDetail = "the answer didn't hold the post"
+                return walk
+            }
             // a post that can't be seen has no reply list to read
-            if (walk.parent && walk.parent.kind !== 'tweet') return walk
+            if (walk.parent.kind !== 'tweet') return walk
         }
         const hit = page.tweets.find(t => t.id === replyId && t.kind === 'tweet')
         if (hit) {
             walk.found = true
             // a heading such as "Probable spam" sets its part of the list apart too
-            walk.behindPrompt = (!!cursor && isPromptCursor(cursor)) || !!hit.section
+            walk.behindPrompt = pageFold || !!hit.section
             // a heading ("Probable spam"), or the button's words without "Show"
-            walk.section =
-                hit.section ||
-                (walk.behindPrompt ? headingFrom(cursor?.actionText || 'Show more replies') : '')
+            walk.section = hit.section || (walk.behindPrompt ? headingFrom(entry.action || cursor?.actionText || 'Show more replies') : '')
             return walk
         }
         const prompts = page.cursors.filter(c => isPromptCursor(c) && !seenCursors.has(c.value))
-        const more = fresh.length ? page.cursors.filter(c => c.type === 'Bottom' && !seenCursors.has(c.value)) : []
+        // X closes the part behind the button with TimelineTerminateTimeline
+        // Bottom. The list's own first page carries one too, beside a bottom
+        // cursor that does go on, so only the button's part is taken at its word.
+        const partEnds = pageFold && page.endsBelow
+        const more = fresh.length && !partEnds ? page.cursors.filter(c => c.type === 'Bottom' && !seenCursors.has(c.value)) : []
+        // a bottom cursor found behind the button goes on with that part. A
+        // heading on a list page doesn't carry over: X may head other things
+        // there, and a listed reply must never read as set apart.
         for (const c of [...prompts, ...more]) seenCursors.add(c.value)
-        queue.unshift(...prompts.map(c => ({ cursor: c })))
-        queue.push(...more.map(c => ({ cursor: c })))
+        queue.unshift(...prompts.map(c => ({ cursor: c, fold: true, action: c.actionText })))
+        queue.push(...more.map(c => ({ cursor: c, fold: pageFold, action: pageFold ? entry.action || cursor?.actionText : undefined })))
     }
     return walk
 }
@@ -140,6 +175,9 @@ async function openDirectly(read: Read, replyId: string) {
     if (kind !== 'ok') return { reads: 1, stop: kind, stopDetail: describeAnswer(answer) }
     const page = parseTimeline(answer.json)
     const own = page.tweets.find(t => t.id === replyId)
+    // X answers a post's page with an entry for it even when it's deleted or
+    // kept from the reader: one without it is something else
+    if (!own) return { reads: 1, stop: 'error' as const, stopDetail: "the answer didn't hold the reply" }
     return { reads: 1, own }
 }
 
@@ -190,17 +228,17 @@ export async function checkReply(reply: ReplyRef, asViewer: Read, asAuthor?: Rea
                 if (DELETED.test(note)) return { state: 'deleted', reads, detail: `its page says "${note}"` }
                 detail = note ? `its page says "${note}"` : 'its page shows no post'
                 // X answers a deleted reply's page with an empty result, the
-                // same as one it won't show: the author's own look tells them apart
-                if (!asAuthor) return { state: 'unavailable', reads, detail }
+                // same as one it won't show: only the author's own look tells
+                // them apart, so without it the check can't say
+                if (!asAuthor) return { state: 'unknown', reads, detail: `${detail}: deleted, or kept from others, and only its author's view tells which` }
                 const mine = await openDirectly(asAuthor, reply.id)
                 reads += mine.reads
-                if (mine.stop) return { state: 'unavailable', reads, detail: `${detail}; the author's view wasn't read (${mine.stopDetail})` }
+                if (mine.stop) return { state: 'unknown', stop: mine.stop, reads, detail: `${detail}; its author's view wasn't read (${mine.stopDetail})` }
                 if (mine.own?.kind !== 'tweet') return { state: 'deleted', authorSees: false, reads, detail: 'its page shows no post, to its author too' }
                 return { state: 'unavailable', authorSees: true, reads, detail }
             }
             // a long list read only in part says nothing about the rest
-            if (walk.truncated)
-                return { state: 'unknown', reads, detail: `not in the first ${MAX_THREAD_PAGES} pages of a long reply list` }
+            if (walk.truncated) return { state: 'unknown', reads, detail: 'not in the pages a check reads of a long reply list' }
             state = 'missing'
             detail = 'in no part of the reply list, though it opens directly'
         }

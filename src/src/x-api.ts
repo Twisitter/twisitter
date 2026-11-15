@@ -3,6 +3,8 @@
 // a new web client, so the page hook (inject.ts) learns the current ones from
 // the page's own requests, and these are only where a fresh install starts.
 
+import { findInstructions } from './timeline'
+
 // The web client's app token: the same for everyone, sent with every request
 // the page makes. A user's session is in their cookies, not in this.
 export const WEB_BEARER =
@@ -172,7 +174,10 @@ export const classifyAnswer = (a: XAnswer): AnswerKind => {
     if (a.status === 401 || /(^|;\s*)(32|89|353)\s/.test(text)) return 'signed_out'
     if ((a.status === 400 || a.status === 404 || a.status === 422) && /features|query|queryid|unspecified|cannot be null/i.test(text))
         return 'stale_client'
-    if (a.status === 200 && a.json && typeof a.json === 'object' && a.json.data) return 'ok'
+    // every read is of a timeline: a 200 whose data holds none is X's error
+    // answer ({ data: {}, errors: [...] }), not an empty list. One that has
+    // both a timeline and errors is still the timeline.
+    if (a.status === 200 && a.json && typeof a.json === 'object' && a.json.data && findInstructions({ data: a.json.data })) return 'ok'
     return 'error'
 }
 export const describeAnswer = (a: XAnswer): string =>

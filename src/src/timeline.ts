@@ -41,6 +41,8 @@ export interface TimelinePage {
     tweets: TimelineTweet[]
     cursors: TimelineCursor[]
     labels: string[]
+    // the answer held TimelineTerminateTimeline with direction Bottom
+    endsBelow: boolean
 }
 
 // The instructions array, wherever this kind of answer keeps it
@@ -100,7 +102,7 @@ const idFromEntryId = (entryId: string): string => {
 }
 
 export function parseTimeline(json: any): TimelinePage {
-    const page: TimelinePage = { tweets: [], cursors: [], labels: [] }
+    const page: TimelinePage = { tweets: [], cursors: [], labels: [], endsBelow: false }
     const instructions = findInstructions(json) || []
     let section = ''
     const readItem = (entryId: string, content: any) => {
@@ -148,6 +150,7 @@ export function parseTimeline(json: any): TimelinePage {
         else if (type === 'TimelineTimelineCursor') readCursor(entryId, content)
     }
     for (const ins of instructions) {
+        if (ins?.type === 'TimelineTerminateTimeline' && ins.direction === 'Bottom') page.endsBelow = true
         if (Array.isArray(ins?.entries)) ins.entries.forEach(readEntry)
         if (ins?.entry) readEntry(ins.entry)
         if (Array.isArray(ins?.moduleItems))

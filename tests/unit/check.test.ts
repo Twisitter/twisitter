@@ -170,7 +170,8 @@ describe('cheap answers', () => {
         }
         const author = fakeRead({})
         const outcome = await checkReply({ id: IDS.missingReply, parentId: IDS.listedParent }, longList as any, author.read)
-        expect(outcome).toMatchObject({ state: 'unknown', reads: 5 })
+        // four pages of the list, the hidden replies, the reply itself
+        expect(outcome).toMatchObject({ state: 'unknown', reads: 6 })
         expect(author.calls).toEqual([])
     })
 })
@@ -178,12 +179,12 @@ describe('cheap answers', () => {
 describe('walkThread', () => {
     it('stops at the page limit and says the list went on', async () => {
         let n = 0
-        // every page brings one new tweet and another bottom cursor
+        // every page brings one new reply and another bottom cursor
         const endless = async () => {
             n++
             const p = fixture('listed_thread')
             const entries = p.data.threaded_conversation_with_injections_v2.instructions[1].entries
-            entries[0].content.itemContent.tweet_results.result.rest_id = String(1800000000000000000n + BigInt(n))
+            entries[1].content.items[0].item.itemContent.tweet_results.result.rest_id = String(1800000000000000000n + BigInt(n))
             entries[entries.length - 1].content.value = `cursor-page-${n}`
             return ok(p)
         }

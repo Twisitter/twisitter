@@ -40,8 +40,9 @@ function main() {
         if (!data || typeof data !== 'object') return
         if (data.source === MSG_SOURCE) {
             const { source, ...rest } = data
-            if (['learned-op', 'bearer', 'created-reply', 'replies-tab'].includes(rest.type)) toBackground({ action: rest.type, ...rest })
-            else if (__DEV__ && rest.type === 'dev-txid') toBackground({ action: 'dev-txid', ...rest })
+            // the checked type is the action: a field the page sent can't replace it
+            if (['learned-op', 'bearer', 'created-reply', 'replies-tab'].includes(rest.type)) toBackground({ ...rest, action: rest.type })
+            else if (__DEV__ && rest.type === 'dev-txid') toBackground({ ...rest, action: 'dev-txid' })
         } else if (__DEV__ && data.source === DEV_SOURCE) {
             // dev builds: lets a test drive the extension from an x.com tab
             toBackground({ action: 'dev', cmd: data.cmd, args: data.args }).then(result => {

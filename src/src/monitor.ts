@@ -16,6 +16,7 @@ import {
     KEYS,
     MINUTE,
     nextCheckAt,
+    retryAt,
     setLocal,
     takeUnnotified,
     trackReplies,
@@ -42,8 +43,9 @@ const READS_KEPT_FREE = 12
 // all's well
 export interface AccountStatus {
     // signed_out: X no longer takes the session; rate_limited: X asked for a
-    // pause, until `until`
-    state: 'signed_out' | 'rate_limited'
+    // pause, until `until`; other_account (the user only): x.com in this
+    // browser is signed in to the second account, named in `detail`
+    state: 'signed_out' | 'rate_limited' | 'other_account'
     until?: number
     at: number
     detail?: string
@@ -55,19 +57,50 @@ async function noteAnswer(who: Who, answer: XAnswer): Promise<XAnswer> {
     const kind = classifyAnswer(answer)
     const key = STATUS_KEY[who]
     const now = Date.now()
-    if (kind === 'signed_out') await setLocal(key, { state: 'signed_out', at: now, detail: describeAnswer(answer) })
+    // while x.com is on the second account, a refusal is about that session,
+    // not the user's: the status that says so stays
+    const otherAccount = (await getLocal<AccountStatus | null>(key, null))?.state === 'other_account'
+    if (kind === 'signed_out') {
+        if (!otherAccount) await setLocal(key, { state: 'signed_out', at: now, detail: describeAnswer(answer) })
+    }
     else if (kind === 'rate_limited') {
         // X says when the window resets; a quarter hour if it doesn't
         const reset = (answer.rateReset || 0) * 1000
         await setLocal(key, { state: 'rate_limited', at: now, until: reset > now && reset < now + 30 * MINUTE ? reset : now + 15 * MINUTE })
-    } else if (kind === 'ok' && (await getLocal(key, null))) await api.storage.local.remove(key)
+    } else if (kind === 'ok' && !otherAccount) {
+        // a good answer ends X's trouble with a session, but not the browser
+        // being signed in to the second account: that read carried its
+        // session, and only a page signed in as the user ends it (notePageUser)
+        if (await getLocal(key, null)) await api.storage.local.remove(key)
+    }
     return answer
 }
 export const readAsUserNoted: Read = async (name, variables) => noteAnswer('user', await readAsUser(name, variables))
 const readAsSecondNoted =
     (second: SecondAccount): Read =>
-    async (name, variables) =>
-        noteAnswer('second', await readAsSecond(second, name, variables))
+    async (name, variables) => {
+        const answer = await readAsSecond(second, name, variables)
+        // an answer for an account disconnected or replaced during the read
+        // says nothing about the account connected now
+        if ((await getSecondAccount())?.token !== second.token) return { status: 0, failure: 'not kept: the second account changed' }
+        return noteAnswer('second', answer)
+    }
+
+// An x.com page said who it's signed in as, outside a sign-in. That's the
+// user, unless it's the second account: then this browser's X session is the
+// second account's for now, and reads as the user wait (they would carry that
+// session) until a page signed in as the user loads again.
+export async function notePageUser(who: { userId: string; screenName: string }) {
+    const second = await getSecondAccount()
+    if (second && who.userId === second.userId) {
+        await setLocal(KEYS.userStatus, { state: 'other_account', at: Date.now(), detail: `@${who.screenName}` })
+        return
+    }
+    const me = await getLocal<Me | null>(KEYS.me, null)
+    if (!me || me.userId !== who.userId || me.screenName !== who.screenName) await setLocal(KEYS.me, { ...who, at: Date.now() })
+    // a page signed in is a session X takes
+    await api.storage.local.remove(KEYS.userStatus)
+}
 
 // The account's trouble, if any; a pause that has run out is over
 export async function accountTrouble(who: Who): Promise<AccountStatus | null> {
@@ -133,9 +166,21 @@ async function checkOne(reply: Tracked, me: Me | null, second: SecondAccount, us
         const t = tracked[reply.id]
         if (!t) return
         t.checks++
-        t.last = { ...outcome, at: now, viewer: roles.viewer }
-        // a check that couldn't finish tries again in a quarter hour
-        t.nextCheckAt = outcome.stop ? now + 15 * MINUTE : nextCheckAt(t.capturedAt, now)
+        const record = { ...outcome, at: now, viewer: roles.viewer }
+        // a check that couldn't say leaves the answer before it standing
+        if (outcome.state === 'unknown' && t.last && t.last.state !== 'unknown') t.lastTry = record
+        else {
+            t.last = record
+            delete t.lastTry
+        }
+        // one that stopped early tries again, less often each time in a row
+        if (outcome.stop) {
+            t.stops = (t.stops || 0) + 1
+            t.nextCheckAt = retryAt(t.capturedAt, t.stops, now)
+        } else {
+            delete t.stops
+            t.nextCheckAt = nextCheckAt(t.capturedAt, now)
+        }
     })
     return outcome
 }
@@ -164,12 +209,24 @@ export function runTick(opts: { force?: boolean; only?: string } = {}): Promise<
         const now = Date.now()
         const due = Object.values(tracked)
             .filter(t => (opts.only ? t.id === opts.only : opts.force || t.nextCheckAt <= now))
+            // a reply the second account wrote waits while the user's session
+            // can't be read; it mustn't hold up the replies behind it
+            .filter(t => rolesFor(t, me, second, userOk))
             .sort((a, b) => a.nextCheckAt - b.nextCheckAt)
             .slice(0, opts.only ? 1 : opts.force ? 5 : CHECKS_PER_TICK)
         const findings: string[] = []
         for (const reply of due) {
             if ((await readsInWindow('second')) > READS_PER_WINDOW - READS_KEPT_FREE) {
                 report.skipped = 'read_budget'
+                break
+            }
+            // a sign-in, a Disconnect or a new second account since the round began
+            if (await isConnecting()) {
+                report.skipped = 'connecting'
+                break
+            }
+            if ((await getSecondAccount())?.token !== second.token) {
+                report.skipped = 'second_account_changed'
                 break
             }
             const outcome = await checkOne(reply, me, second, userOk)
@@ -231,6 +288,8 @@ export async function trackByLink(url: string): Promise<{ ok: boolean; error?: s
     if (!m) return { ok: false, error: 'not_a_post_link' }
     const id = m[1]
     if ((await getTracked())[id]) return { ok: true, id }
+    // its first read is as the user, which waits while a second account signs in
+    if (await isConnecting()) return { ok: false, error: 'connecting' }
     const second = await getSecondAccount()
     const me = await getLocal<Me | null>(KEYS.me, null)
     // the reply opened directly, as the user, or as the second account when
