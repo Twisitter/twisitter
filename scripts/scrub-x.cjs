@@ -38,6 +38,8 @@ function scrubX(json, named) {
         'in_reply_to_screen_name', 'conversation_id_str', 'reply_count', 'full_text', 'created_at', 'id_str',
         'user_id_str', 'screen_name', 'name', 'reason', 'create_tweet', 'direction', 'displayType', 'title',
         'tweetInterstitial', 'limitedActionResults', 'errors', 'message', 'code', 'viewer',
+        'clientEventInfo', 'details', 'conversationDetails', 'conversationSection', 'has_graduated_access',
+        'favorite_count', 'retweet_count',
     ])
     const ID_KEYS = new Set(['rest_id', 'id_str', 'user_id_str', 'in_reply_to_status_id_str', 'in_reply_to_user_id_str', 'conversation_id_str'])
     const walk = (v, key, parentKey) => {

@@ -96,7 +96,9 @@ async function onRepliesTab(msg: any) {
 // account for now (notePageUser).
 async function onPageUser(msg: any, sender: chrome.runtime.MessageSender) {
     if (!isTweetId(msg.userId) || typeof msg.screenName !== 'string' || !/^\w{1,15}$/.test(msg.screenName)) return
-    const who = { userId: msg.userId, screenName: msg.screenName }
+    // has_graduated_access, when the page's account record carries it
+    const graduated = typeof msg.graduated === 'boolean' ? (msg.graduated as boolean) : undefined
+    const who = { userId: msg.userId, screenName: msg.screenName, graduated }
     if (await isConnecting()) {
         if (await isLoginTab(sender.tab?.id)) await finishConnect(who)
         return
@@ -111,7 +113,7 @@ async function pageNotes() {
     const notes: Record<string, unknown> = {}
     for (const t of Object.values(tracked)) {
         if (t.last && HIDDEN_STATES.has(t.last.state) && isFinding(t.last))
-            notes[t.id] = { state: t.last.state, section: t.last.section, viewer: t.last.viewer, at: t.last.at, authorSees: t.last.authorSees }
+            notes[t.id] = { state: t.last.state, section: t.last.section, viewer: t.last.viewer, at: t.last.at, authorSees: t.last.authorSees, graduated: t.last.graduated, viewerGraduated: t.last.viewerGraduated }
     }
     return { notes }
 }
@@ -130,7 +132,7 @@ async function getState() {
         version: __VERSION__,
         dev: __DEV__,
         me: await getLocal<Me | null>(KEYS.me, null),
-        second: second && { screenName: second.screenName, userId: second.userId, connectedAt: second.connectedAt },
+        second: second && { screenName: second.screenName, userId: second.userId, connectedAt: second.connectedAt, graduated: second.graduated },
         secondStatus: await accountTrouble('second'),
         userStatus: await accountTrouble('user'),
         connecting: await isConnecting(),

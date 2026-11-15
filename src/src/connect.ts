@@ -44,6 +44,8 @@ export interface ConnectResult {
 export interface PageUser {
     userId: string
     screenName: string
+    // has_graduated_access, when the page says
+    graduated?: boolean
 }
 
 const readPending = pendingSignIn as () => Promise<Pending | null>
@@ -132,6 +134,7 @@ export const finishConnect = (who: PageUser): Promise<void> =>
             token: newToken(),
             cookies: await xCookies(),
             connectedAt: Date.now(),
+            ...(who.graduated !== undefined ? { graduated: who.graduated } : {}),
         }
         await setLocal(KEYS.second, account)
         await api.storage.local.remove(KEYS.secondStatus)

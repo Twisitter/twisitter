@@ -10,6 +10,8 @@ export interface PageNote {
     viewer: string
     at: number
     authorSees?: boolean
+    graduated?: boolean
+    viewerGraduated?: boolean
 }
 
 const NOTE_CLASS = 'twisitter-note'
@@ -31,7 +33,7 @@ function buildNote(note: PageNote): HTMLElement {
     const title = document.createElement('strong')
     title.textContent = `Twisitter: ${stateLabel(note.state, note.section)}`
     const body = document.createElement('span')
-    body.textContent = ` ${explain(note.state, note.viewer, note.section, note.authorSees)} Checked ${ago(note.at)}.`
+    body.textContent = ` ${explain(note.state, note.viewer, note.section, note.authorSees, { author: note.graduated, viewer: note.viewerGraduated })} Checked ${ago(note.at)}.`
     box.append(title, body)
     // a click on the note shouldn't open the tweet
     box.addEventListener('click', e => e.stopPropagation())

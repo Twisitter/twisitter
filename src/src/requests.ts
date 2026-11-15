@@ -26,6 +26,9 @@ export interface SecondAccount {
     token: string
     cookies: StoredCookie[]
     connectedAt: number
+    // its has_graduated_access, from the page it signed in on: false while X
+    // holds it back, which may change what it sees
+    graduated?: boolean
 }
 
 export const isToken = (t: unknown): t is string => typeof t === 'string' && /^[0-9a-f]{32}$/.test(t)

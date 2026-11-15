@@ -58,7 +58,7 @@ export function tweetsIn(json: any, limit = 100): CapturedTweet[] {
 // entities.users), and the page's app deletes the global once it has read it,
 // so this reads the inline script's text. Null for a page with nobody
 // signed in, or one that doesn't say.
-export function pageUserFrom(scriptText: string): { userId: string; screenName: string } | null {
+export function pageUserFrom(scriptText: string): { userId: string; screenName: string; graduated?: boolean } | null {
     const at = scriptText.indexOf('__INITIAL_STATE__')
     if (at < 0) return null
     const start = scriptText.indexOf('{', at)
@@ -85,9 +85,12 @@ export function pageUserFrom(scriptText: string): { userId: string; screenName: 
     try {
         const state = JSON.parse(scriptText.slice(start, end))
         const userId = state?.session?.user_id
-        const screenName = state?.entities?.users?.entities?.[userId]?.screen_name
+        const user = state?.entities?.users?.entities?.[userId]
+        const screenName = user?.screen_name
+        // X's has_graduated_access for that account (in the record on 2026-11-14)
+        const graduated = typeof user?.has_graduated_access === 'boolean' ? { graduated: user.has_graduated_access as boolean } : {}
         return typeof userId === 'string' && /^\d{1,25}$/.test(userId) && typeof screenName === 'string' && /^\w{1,15}$/.test(screenName)
-            ? { userId, screenName }
+            ? { userId, screenName, ...graduated }
             : null
     } catch {
         return null

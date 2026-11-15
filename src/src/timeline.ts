@@ -17,10 +17,17 @@ export interface XTweet {
     text?: string
     createdAt?: string
     replyCount?: number
+    // likes and reposts, for where a reply would sit by engagement
+    likeCount?: number
+    repostCount?: number
     // the stand-in's words, or X's reason
     note?: string
     // X sent it wrapped in visibility results (limited actions, a warning)
     limited?: boolean
+    // its author's has_graduated_access, from the user record X sends with
+    // every tweet: false while X holds an account back until it's sure a
+    // person runs it ("Unlock more on X", /i/graduated-access)
+    graduated?: boolean
 }
 
 export interface TimelineTweet extends XTweet {
@@ -28,6 +35,11 @@ export interface TimelineTweet extends XTweet {
     // the heading over this part of the list, e.g. "Probable spam"; '' for
     // the main list
     section: string
+    // X's own name for that part of the list (clientEventInfo.details.
+    // conversationDetails.conversationSection on each thread item):
+    // HighQuality in the main list, LowQuality behind "Show probable spam"
+    // (both seen 2026-11-14)
+    quality?: string
 }
 export interface TimelineCursor {
     entryId: string
@@ -82,6 +94,7 @@ export function readTweetResult(r: any): XTweet | null {
     if (typename !== 'Tweet' && !r.legacy) return null
     const legacy = r.legacy || {}
     const user = r.core?.user_results?.result || {}
+    const graduated = [user.has_graduated_access, user.legacy?.has_graduated_access].find(v => typeof v === 'boolean')
     return {
         id: String(r.rest_id || legacy.id_str || ''),
         kind: 'tweet',
@@ -92,6 +105,9 @@ export function readTweetResult(r: any): XTweet | null {
         text: String(r.note_tweet?.note_tweet_results?.result?.text || legacy.full_text || ''),
         createdAt: legacy.created_at || undefined,
         replyCount: typeof legacy.reply_count === 'number' ? legacy.reply_count : undefined,
+        ...(typeof legacy.favorite_count === 'number' ? { likeCount: legacy.favorite_count } : {}),
+        ...(typeof legacy.retweet_count === 'number' ? { repostCount: legacy.retweet_count } : {}),
+        ...(graduated !== undefined ? { graduated } : {}),
     }
 }
 
@@ -101,18 +117,26 @@ const idFromEntryId = (entryId: string): string => {
     return all.length ? all[all.length - 1][1] : ''
 }
 
+// X's name for the part of the list an item sits in, when it sends one
+const qualityOf = (clientEventInfo: any): string | undefined => {
+    const q = clientEventInfo?.details?.conversationDetails?.conversationSection
+    return typeof q === 'string' && q ? q : undefined
+}
+
 export function parseTimeline(json: any): TimelinePage {
     const page: TimelinePage = { tweets: [], cursors: [], labels: [], endsBelow: false }
     const instructions = findInstructions(json) || []
     let section = ''
-    const readItem = (entryId: string, content: any) => {
+    const readItem = (entryId: string, content: any, clientEventInfo?: any) => {
         if (!content || typeof content !== 'object') return
         const type = content.itemType || content.__typename
+        const quality = qualityOf(clientEventInfo)
+        const q = quality ? { quality } : {}
         if (type === 'TimelineTweet') {
             const t = readTweetResult(content.tweet_results?.result)
             const id = t?.id || idFromEntryId(entryId)
-            if (t && id) page.tweets.push({ ...t, id, entryId, section })
-            else if (id) page.tweets.push({ id, kind: 'unavailable', entryId, section })
+            if (t && id) page.tweets.push({ ...t, id, entryId, section, ...q })
+            else if (id) page.tweets.push({ id, kind: 'unavailable', entryId, section, ...q })
         } else if (type === 'TimelineTombstone') {
             const id = idFromEntryId(entryId)
             if (id)
@@ -122,6 +146,7 @@ export function parseTimeline(json: any): TimelinePage {
                     note: textOf(content.tombstoneInfo?.richText) || textOf(content.tombstoneInfo?.text),
                     entryId,
                     section,
+                    ...q,
                 })
         } else if (type === 'TimelineTimelineCursor') {
             readCursor(entryId, content)
@@ -144,9 +169,9 @@ export function parseTimeline(json: any): TimelinePage {
         const entryId = String(entry?.entryId || '')
         if (!content) return
         const type = content.entryType || content.__typename
-        if (type === 'TimelineTimelineItem') readItem(entryId, content.itemContent)
+        if (type === 'TimelineTimelineItem') readItem(entryId, content.itemContent, content.clientEventInfo)
         else if (type === 'TimelineTimelineModule')
-            for (const item of content.items || []) readItem(String(item?.entryId || entryId), item?.item?.itemContent)
+            for (const item of content.items || []) readItem(String(item?.entryId || entryId), item?.item?.itemContent, item?.item?.clientEventInfo)
         else if (type === 'TimelineTimelineCursor') readCursor(entryId, content)
     }
     for (const ins of instructions) {
@@ -154,7 +179,7 @@ export function parseTimeline(json: any): TimelinePage {
         if (Array.isArray(ins?.entries)) ins.entries.forEach(readEntry)
         if (ins?.entry) readEntry(ins.entry)
         if (Array.isArray(ins?.moduleItems))
-            for (const item of ins.moduleItems) readItem(String(item?.entryId || ''), item?.item?.itemContent)
+            for (const item of ins.moduleItems) readItem(String(item?.entryId || ''), item?.item?.itemContent, item?.item?.clientEventInfo)
     }
     return page
 }
@@ -162,6 +187,11 @@ export function parseTimeline(json: any): TimelinePage {
 // "Show probable spam" and its kin: cursors that open a part of the list X
 // keeps closed
 export const isPromptCursor = (c: TimelineCursor) => /^ShowMoreThreads/.test(c.type)
+
+// The conversationSection names that mean X set a reply apart from the main
+// list. Only names seen in X's answers count: a new one is kept as evidence,
+// never read as hidden.
+export const LOWER_SECTIONS: ReadonlySet<string> = new Set(['LowQuality', 'AbusiveQuality'])
 
 // X's created_at ("Tue Nov 01 15:05:12 +0000 2022") as a time
 export const createdAtMs = (createdAt?: string): number | undefined => {

@@ -3,7 +3,7 @@
 
 import api from './api'
 import { isFinding, type ReplyState } from './check'
-import { ago, explain, stateLabel } from './describe'
+import { ago, explain, historyText, positionText, stateLabel } from './describe'
 import type { Tracked } from './store'
 import { tweetUrl } from './x-api'
 
@@ -11,7 +11,7 @@ type State = {
     version: string
     dev: boolean
     me: { userId: string; screenName: string } | null
-    second: { screenName: string; userId: string; connectedAt: number } | null
+    second: { screenName: string; userId: string; connectedAt: number; graduated?: boolean } | null
     secondStatus: { state: string; until?: number; detail?: string } | null
     userStatus: { state: string; until?: number; detail?: string } | null
     connecting: boolean
@@ -111,6 +111,11 @@ function accountSection(s: State) {
                 el('button', { class: 'link', text: problem ? 'Connect again' : 'Disconnect', onclick: () => act('disconnect', () => (problem ? ask('connect-start') : ask('disconnect'))) }),
             ),
             problem && el('div', { class: 'notice bad small', text: problem }),
+            s.second.graduated === false &&
+                el('div', {
+                    class: 'notice small',
+                    text: `When it signed in, X was holding @${s.second.screenName} back until it's sure a person runs it ("Unlock more on X"), so what it sees may differ from what most people see.`,
+                }),
         )
     } else {
         second = el(
@@ -192,6 +197,10 @@ function checkSection(s: State) {
     )
 }
 
+// X's own section label for the reply, and for its author when that differs
+const xLabel = (quality: string, authorQuality?: string) =>
+    `X's data files it as "${quality}"${authorQuality && authorQuality !== quality ? `, and as "${authorQuality}" for its author` : ''}. `
+
 const badgeClass = (t: Tracked) => (!t.last ? '' : t.last.state === 'hidden_by_author' ? 'author' : isFinding(t.last) ? 'finding' : t.last.state === 'listed' ? 'ok' : '')
 
 function replyItem(t: Tracked) {
@@ -199,6 +208,8 @@ function replyItem(t: Tracked) {
     const state: ReplyState = last?.state || 'unknown'
     const label = last ? stateLabel(state, last.section) : 'Waiting for its first check'
     const finding = !!last && isFinding(last)
+    const where = last && state !== 'deleted' && state !== 'parent_unavailable' ? positionText(last.position, last.viewer, last.section) : ''
+    const past = historyText(t.history)
     return el(
         'li',
         { class: 'reply' },
@@ -208,10 +219,13 @@ function replyItem(t: Tracked) {
             el(
                 'div',
                 { class: `why small ${finding ? '' : 'muted'}` },
-                finding || state !== 'listed' ? explain(state, last.viewer, last.section, last.authorSees) + ' ' : '',
+                finding || state !== 'listed' ? explain(state, last.viewer, last.section, last.authorSees, { author: last.graduated, viewer: last.viewerGraduated }) + ' ' : '',
+                last.quality && state !== 'listed' ? el('span', { class: 'muted', text: xLabel(last.quality, last.authorQuality) }) : '',
                 el('span', { class: 'muted', text: `Checked ${ago(last.at)} as ${last.viewer}.` }),
                 last.stop || state === 'unknown' ? el('span', { class: 'muted', text: ` (${last.detail})` }) : '',
             ),
+        where && el('div', { class: 'small muted', text: where }),
+        past && el('div', { class: 'small muted', text: past }),
         t.lastTry && el('div', { class: 'small muted', text: `Checked again ${ago(t.lastTry.at)}, but that check couldn't say (${t.lastTry.detail}).` }),
         el(
             'div',

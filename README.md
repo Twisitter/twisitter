@@ -34,6 +34,27 @@ as the author, to tell "hidden from others" from "gone for everyone".
 | unavailable | "This Post is unavailable" | yes, if its author still sees it |
 | deleted | nothing, its author included | no |
 
+Two of X's own signals ride along when X sends them:
+
+- **X's label for the reply's place in the list.** Each reply in a thread
+  carries `conversationSection`: `HighQuality` in the main list and
+  `LowQuality` behind "Show probable spam" (seen 2026-11-14). The check records
+  it beside what the list showed and notes a mismatch, but the list decides.
+- **The author's access flag.** Each tweet's user record carries
+  `has_graduated_access`, false while X holds an account back until it's sure
+  a person runs it ("Unlock more on X"). When it's false for the reply's
+  author, the result names it as a likely reason.
+
+Each result also places the reply among the replies the second account saw:
+its rank, whether that part of the list was read to its end, X's own count of
+the post's replies, and where it would sit by likes, reposts and replies or by
+date. That comes from the pages the check reads anyway. Each reply keeps its
+last 20 finished checks, so a change such as "missing, then Probable spam an
+hour later" shows in the popup. And since every x.com page carries the
+signed-in account's `has_graduated_access`, the popup says when X was holding
+the second account back as it signed in: what it sees may then differ from
+what most people see.
+
 It doesn't look at reach in other people's feeds: there's nothing to compare
 that against.
 

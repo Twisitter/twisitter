@@ -21,6 +21,7 @@ import {
     takeUnnotified,
     trackReplies,
     updateTracked,
+    withCheck,
     type Me,
     type NewReply,
     type Tracked,
@@ -90,14 +91,14 @@ const readAsSecondNoted =
 // user, unless it's the second account: then this browser's X session is the
 // second account's for now, and reads as the user wait (they would carry that
 // session) until a page signed in as the user loads again.
-export async function notePageUser(who: { userId: string; screenName: string }) {
+export async function notePageUser(who: { userId: string; screenName: string; graduated?: boolean }) {
     const second = await getSecondAccount()
     if (second && who.userId === second.userId) {
         await setLocal(KEYS.userStatus, { state: 'other_account', at: Date.now(), detail: `@${who.screenName}` })
         return
     }
     const me = await getLocal<Me | null>(KEYS.me, null)
-    if (!me || me.userId !== who.userId || me.screenName !== who.screenName) await setLocal(KEYS.me, { ...who, at: Date.now() })
+    if (!me || me.userId !== who.userId || me.screenName !== who.screenName || me.graduated !== who.graduated) await setLocal(KEYS.me, { ...who, at: Date.now() })
     // a page signed in is a session X takes
     await api.storage.local.remove(KEYS.userStatus)
 }
@@ -149,11 +150,12 @@ async function refreshRepliesTab(me: Me, force: boolean) {
 export function rolesFor(reply: Tracked, me: Me | null, second: SecondAccount, userOk = true) {
     const asSecond = readAsSecondNoted(second)
     if (reply.authorId && reply.authorId === second.userId)
-        return userOk ? { asViewer: readAsUserNoted, asAuthor: asSecond, viewer: me ? `@${me.screenName}` : 'your account' } : null
+        return userOk ? { asViewer: readAsUserNoted, asAuthor: asSecond, viewer: me ? `@${me.screenName}` : 'your account', viewerGraduated: me?.graduated } : null
     return {
         asViewer: asSecond,
         asAuthor: userOk && me && reply.authorId === me.userId ? readAsUserNoted : undefined,
         viewer: `@${second.screenName}`,
+        viewerGraduated: second.graduated,
     }
 }
 
@@ -166,12 +168,13 @@ async function checkOne(reply: Tracked, me: Me | null, second: SecondAccount, us
         const t = tracked[reply.id]
         if (!t) return
         t.checks++
-        const record = { ...outcome, at: now, viewer: roles.viewer }
+        const record = { ...outcome, at: now, viewer: roles.viewer, ...(roles.viewerGraduated !== undefined ? { viewerGraduated: roles.viewerGraduated } : {}) }
         // a check that couldn't say leaves the answer before it standing
         if (outcome.state === 'unknown' && t.last && t.last.state !== 'unknown') t.lastTry = record
         else {
             t.last = record
             delete t.lastTry
+            t.history = withCheck(t.history, record)
         }
         // one that stopped early tries again, less often each time in a row
         if (outcome.stop) {

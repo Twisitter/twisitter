@@ -4,7 +4,7 @@
 // awaits interleave.
 
 import api from './api'
-import type { CheckOutcome } from './check'
+import type { CheckOutcome, ReplyState } from './check'
 
 export type ReplySource = 'posted' | 'replies_tab' | 'link'
 
@@ -12,7 +12,39 @@ export interface CheckRecord extends CheckOutcome {
     at: number
     // whose view the check read as "others"
     viewer: string
+    // that account's has_graduated_access, as of its sign-in
+    viewerGraduated?: boolean
 }
+
+// One finished check, kept so a change shows (missing, then "Probable spam")
+export interface HistoryEntry {
+    at: number
+    state: ReplyState
+    viewer: string
+    section?: string
+    quality?: string
+    rank?: number
+    of?: number
+}
+export const HISTORY_MAX = 20
+
+// The reply's history with a check added: only checks that said something
+// (not stopped, not "unknown"), the newest 20
+export const withCheck = (history: HistoryEntry[] | undefined, r: CheckRecord): HistoryEntry[] =>
+    r.stop || r.state === 'unknown'
+        ? history || []
+        : [
+              ...(history || []),
+              {
+                  at: r.at,
+                  state: r.state,
+                  viewer: r.viewer,
+                  ...(r.section ? { section: r.section } : {}),
+                  ...(r.quality ? { quality: r.quality } : {}),
+                  ...(r.position?.rank !== undefined ? { rank: r.position.rank } : {}),
+                  ...(r.position ? { of: r.position.of } : {}),
+              },
+          ].slice(-HISTORY_MAX)
 
 export interface Tracked {
     id: string
@@ -31,12 +63,16 @@ export interface Tracked {
     lastTry?: CheckRecord
     // checks in a row that stopped early (a rate limit, a sign-in, an error)
     stops?: number
+    // checks that said something, oldest first (withCheck)
+    history?: HistoryEntry[]
 }
 
 export interface Me {
     userId: string
     screenName: string
     at: number
+    // has_graduated_access, from x.com's page, when it says
+    graduated?: boolean
 }
 
 export const KEYS = {
