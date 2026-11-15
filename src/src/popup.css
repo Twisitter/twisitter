@@ -1,31 +1,41 @@
+/* X's look: black and white, X's greys and lines, black pill buttons (white in
+   dark mode), with old Twitter's blue for the mark, links and focus rings. */
 :root {
     --bg: #ffffff;
     --fg: #0f1419;
     --muted: #536471;
-    --line: #e6e9ec;
+    --line: #eff3f4;
+    --edge: #cfd9de;
     --card: #f7f9f9;
-    --accent: #1d6fd8;
-    --bad: #b3261e;
-    --bad-bg: #fbeceb;
+    --blue: #1da1f2;
+    /* old Twitter's blue is too light for small text on white; this one reads */
+    --link: #0a6cb0;
+    --btn-bg: #0f1419;
+    --btn-fg: #ffffff;
+    --bad: #c4161c;
+    --bad-bg: #fdeced;
     --warn: #8a5a00;
-    --warn-bg: #fdf3e1;
-    --good: #1e7a3c;
-    --good-bg: #e8f5ec;
+    --warn-bg: #fff4dc;
+    --good: #00704a;
+    --good-bg: #e3f6ee;
 }
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg: #15181c;
+        --bg: #000000;
         --fg: #e7e9ea;
-        --muted: #8b98a5;
+        --muted: #71767b;
         --line: #2f3336;
-        --card: #1e2227;
-        --accent: #4c9bff;
-        --bad: #ff8a80;
-        --bad-bg: #3a1d1b;
-        --warn: #f0b85a;
-        --warn-bg: #3a2c12;
-        --good: #6fd38c;
-        --good-bg: #16301f;
+        --edge: #536471;
+        --card: #16181c;
+        --link: #1da1f2;
+        --btn-bg: #eff3f4;
+        --btn-fg: #0f1419;
+        --bad: #ff6b6b;
+        --bad-bg: #2a0e10;
+        --warn: #ffc24d;
+        --warn-bg: #2a2008;
+        --good: #3ed598;
+        --good-bg: #0b2419;
     }
 }
 * {
@@ -45,22 +55,42 @@ body.tab {
     margin: 24px auto;
     padding: 0 16px;
 }
+a {
+    color: var(--link);
+}
+:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
 header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
-    padding: 12px 14px 8px;
+    padding: 12px 14px 10px;
 }
 header h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
-    font-size: 17px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+/* the mark, from the extension's own icons */
+header h1::before {
+    content: '';
+    width: 22px;
+    height: 22px;
+    flex: none;
+    background: url('../icons/48.png') center / contain no-repeat;
 }
 header .version {
     color: var(--muted);
     font-size: 11px;
 }
 section {
-    padding: 8px 14px;
+    padding: 10px 14px;
     border-top: 1px solid var(--line);
 }
 .row {
@@ -77,42 +107,62 @@ section {
 }
 button {
     font: inherit;
-    padding: 5px 10px;
+    font-weight: 700;
+    padding: 5px 14px;
     border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--card);
+    border: 1px solid var(--edge);
+    background: transparent;
     color: var(--fg);
     cursor: pointer;
+    white-space: nowrap;
+    flex: none;
+}
+button:hover:not(:disabled) {
+    background: var(--card);
 }
 button.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: var(--btn-bg);
+    border-color: var(--btn-bg);
+    color: var(--btn-fg);
+}
+button.primary:hover:not(:disabled) {
+    background: var(--btn-bg);
+    opacity: 0.85;
 }
 button:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
     cursor: default;
 }
 button.link {
     border: none;
     background: none;
     padding: 0;
-    color: var(--accent);
+    font-weight: 400;
+    color: var(--link);
+}
+button.link:hover:not(:disabled) {
+    background: none;
+    text-decoration: underline;
 }
 input[type='url'] {
     flex: 1;
     min-width: 0;
     font: inherit;
-    padding: 5px 8px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
     background: var(--bg);
     color: var(--fg);
 }
+input[type='url']:focus {
+    border-color: var(--blue);
+    outline: 1px solid var(--blue);
+    outline-offset: 0;
+}
 .notice {
     margin: 6px 0;
-    padding: 8px 10px;
-    border-radius: 8px;
+    padding: 9px 12px;
+    border-radius: 12px;
     background: var(--card);
 }
 .notice.bad {
@@ -127,14 +177,14 @@ input[type='url'] {
     padding: 0;
 }
 .reply {
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px solid var(--line);
 }
 .reply:last-child {
     border-bottom: none;
 }
 .reply .text {
-    margin: 2px 0;
+    margin: 3px 0;
     overflow-wrap: anywhere;
 }
 .reply a {
@@ -144,12 +194,15 @@ input[type='url'] {
 .reply a:hover {
     text-decoration: underline;
 }
+.reply .actions a.muted {
+    color: var(--muted);
+}
 .badge {
     display: inline-block;
-    padding: 1px 7px;
+    padding: 1px 8px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     background: var(--card);
     color: var(--muted);
 }
@@ -170,8 +223,8 @@ input[type='url'] {
 }
 .actions {
     display: flex;
-    gap: 10px;
-    margin-top: 3px;
+    gap: 12px;
+    margin-top: 4px;
 }
 pre.dev {
     max-height: 220px;
@@ -184,7 +237,9 @@ pre.dev {
 }
 .welcome h2 {
     margin: 4px 0 6px;
-    font-size: 15px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
 }
 .welcome p {
     margin: 6px 0;
@@ -194,7 +249,10 @@ pre.dev {
     padding-left: 20px;
 }
 .steps li {
-    margin: 6px 0;
+    margin: 8px 0;
+}
+.steps li::marker {
+    font-weight: 700;
 }
 .steps li.done strong::after {
     content: ' \2713';
