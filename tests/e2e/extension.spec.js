@@ -218,3 +218,17 @@ test('connecting a second account saves its cookies and puts the user’s own ba
     const rules = await worker.evaluate(() => chrome.declarativeNetRequest.getSessionRules())
     expect(rules[0].action.requestHeaders[0].value).toBe('auth_token=second-session; ct0=second-csrf')
 })
+
+test('the welcome page explains the three steps and ticks off what’s done', async ({ context, worker, extensionId }) => {
+    await dev(worker, 'set-local', { me: { userId: IDS.authorUser, screenName: 'author', at: Date.now() } })
+    const page = await context.newPage()
+    await page.goto(popupUrl(extensionId) + '#welcome')
+    await expect(page.getByRole('heading', { name: 'Welcome to Twisitter' })).toBeVisible()
+    const steps = page.locator('.steps li')
+    await expect(steps).toHaveCount(3)
+    await expect(steps.nth(0)).toHaveClass(/done/)
+    await expect(steps.nth(0)).toContainText('Signed in as @author')
+    await expect(steps.nth(1)).not.toHaveClass(/done/)
+    await expect(page.getByRole('button', { name: 'Connect a second account' })).toBeEnabled()
+    if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT, fullPage: true })
+})

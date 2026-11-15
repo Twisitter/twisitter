@@ -48,10 +48,15 @@ that against.
   marked GET requests, through a declarativeNetRequest session rule (Chrome,
   Edge) or a blocking webRequest listener (Firefox). Those requests omit the
   browser's cookies, so X's answers can't touch the user's session.
+- **Only ordinary reads.** The second account opens posts and their replies
+  (including "Show probable spam"), a post's hidden-replies page and replies
+  opened directly: what anyone browsing X opens. No searches. Who is signed in
+  comes from x.com's own pages, not from extra requests.
 - **Pace.** A reply is checked about two minutes after it's seen, then at an
-  hour, six hours, a day, three days, a week, two weeks and a month. Reads go
-  one at a time, 2.5 s apart, at most 60 per 15 minutes per account (X allows
-  300 `TweetDetail` reads per 15 minutes).
+  hour, six hours, a day, three days, a week, two weeks and a month. One reply
+  per five-minute round; reads go one at a time, 2.5 s apart, at most 60 per 15
+  minutes per account (X allows 300 `TweetDetail` reads per 15 minutes). The
+  Replies tab adds replies from the last 30 days; older ones come in by link.
 - **Learning X's client.** X changes GraphQL queryIds and feature flags with
   each web client. The page hook sends the ones the page uses; the defaults in
   `src/src/x-api.ts` are from 2026-11-14.
@@ -80,3 +85,12 @@ stand-ins, and only the fields the extension reads are kept.
 Dev builds (`dist-*-dev`) add a transport probe and a dev bridge an x.com tab
 can drive (`window.postMessage({ source: 'twisitter-dev', cmd, args })`).
 Production builds leave both out.
+
+Firefox runs no automated test here; try a build by hand: in Firefox, open
+`about:debugging`, then This Firefox, Load Temporary Add-on, and pick
+`dist-firefox-dev/manifest.json`. Check that a reply posted on x.com shows in the
+popup, that connecting a second account brings your own login back, and that
+Check now gives a result.
+
+`PRIVACY.md` is the privacy policy's text, and `STORE_PRIVACY.txt` holds the
+answers for the stores' privacy forms.

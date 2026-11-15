@@ -204,7 +204,7 @@ async function devAction(cmd: string, args: any): Promise<unknown> {
     if (!__DEV__) return null
     switch (cmd) {
         case 'probe': {
-            return runProbe({ focalId: String(args?.focalId || ''), replyId: args?.replyId, txid: args?.useTxid ? devTxid : undefined, guest: !!args?.guest })
+            return runProbe({ focalId: String(args?.focalId || ''), replyId: args?.replyId, txid: args?.useTxid ? devTxid : undefined })
         }
         case 'state':
             return getState()

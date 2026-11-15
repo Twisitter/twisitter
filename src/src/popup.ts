@@ -202,6 +202,48 @@ function repliesSection(s: State) {
     )
 }
 
+// The page the extension opens when it's installed: what it does, and the
+// three steps, each ticked off as it's done
+function welcomeSection(s: State) {
+    const step = (done: boolean, title: string, ...body: Array<Node | string>) =>
+        el('li', { class: done ? 'done' : '' }, el('strong', { text: title }), el('div', { class: 'small' }, ...body))
+    return el(
+        'section',
+        { class: 'welcome' },
+        el('h2', { text: 'Welcome to Twisitter' }),
+        el(
+            'p',
+            {},
+            'X can hide a reply from everyone but the person who wrote it: behind "Show probable spam", out of the reply list, or on a post\u2019s hidden-replies page. ',
+            'Its writer still sees it where they left it, and X doesn\u2019t say. Twisitter compares your view with a second X account\u2019s view and tells you when they differ.',
+        ),
+        el(
+            'ol',
+            { class: 'steps' },
+            step(
+                !!s.me,
+                'Be signed in to X here',
+                s.me
+                    ? `Signed in as @${s.me.screenName}.`
+                    : el('span', {}, 'Open ', el('a', { href: 'https://x.com/home', target: '_blank', text: 'x.com' }), ' and sign in. Reload any x.com tab that was open before Twisitter was installed.'),
+            ),
+            step(
+                !!s.second,
+                'Connect a second X account',
+                s.second
+                    ? `Connected: @${s.second.screenName}.`
+                    : 'Any other account of yours. Twisitter sets your own login aside, opens X\u2019s login page for you to sign in, keeps that account\u2019s session for its checks and puts your login back. That account only opens posts and their replies, the way anyone browsing would.',
+            ),
+            step(
+                s.tracked.length > 0,
+                'Reply as usual',
+                'Twisitter notices the replies you post on x.com, and reads your Replies tab for those you post from X\u2019s apps. It checks each one a few times over its first month, and tells you if X hides it.',
+            ),
+        ),
+        el('p', { class: 'small muted', text: 'Twisitter never posts, likes, follows or changes anything on X, and talks to no server but x.com. What it keeps stays in this browser.' }),
+    )
+}
+
 function devSection() {
     const post = el('input', { type: 'url', placeholder: 'Post id or link, for the transport probe', 'aria-label': 'Post for the probe' }) as HTMLInputElement
     return el(
@@ -217,7 +259,7 @@ function devSection() {
                     if (!focalId) return
                     devOutput = 'running…'
                     await render()
-                    devOutput = JSON.stringify(await ask('dev', { cmd: 'probe', args: { focalId, guest: true } }), null, 1)
+                    devOutput = JSON.stringify(await ask('dev', { cmd: 'probe', args: { focalId } }), null, 1)
                     await render()
                 },
             },
@@ -234,6 +276,7 @@ async function render() {
     const kids = [
         el('header', {}, el('h1', { text: 'Twisitter' }), el('span', { class: 'version', text: s?.version ? `v${s.version}` : '' })),
         message && el('section', {}, el('div', { class: `notice ${message.bad ? 'bad' : ''}`, text: message.text })),
+        s && location.hash === '#welcome' && welcomeSection(s),
         s && accountSection(s),
         s && checkSection(s),
         s && repliesSection(s),

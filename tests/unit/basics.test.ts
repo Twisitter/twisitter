@@ -38,7 +38,8 @@ describe('the second account’s marker', () => {
         const url = markedUrl('https://x.com/i/api/graphql/q/TweetDetail?variables=%7B%7D', TOKEN)
         expect(url.endsWith(`&tw_as=${TOKEN}`)).toBe(true)
         expect(isMarkedFor(url, TOKEN)).toBe(true)
-        expect(isMarkedFor(markedUrl('https://api.x.com/1.1/x.json', TOKEN), TOKEN)).toBe(true)
+        // x.com only: the extension reads nothing from other hosts
+        expect(isMarkedFor(markedUrl('https://api.x.com/1.1/x.json', TOKEN), TOKEN)).toBe(false)
         expect(isMarkedFor(url, 'f'.repeat(32))).toBe(false)
         expect(isMarkedFor(markedUrl('https://evil.example/x.com/', TOKEN), TOKEN)).toBe(false)
         expect(isMarkedFor(url.replace(TOKEN, `${TOKEN}0`), TOKEN)).toBe(false)

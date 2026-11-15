@@ -32,7 +32,7 @@ export const newToken = (): string =>
     Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('')
 export const markedUrl = (url: string, token: string): string => `${url}${url.includes('?') ? '&' : '?'}${MARKER}=${token}`
 // RE2 syntax, for Chrome's rule too. The token is hex, so it needs no escaping.
-export const markerPattern = (token: string): string => `^https://(x\\.com|api\\.x\\.com)/[^#]*[?&]${MARKER}=${token}(&|$)`
+export const markerPattern = (token: string): string => `^https://x\\.com/[^#]*[?&]${MARKER}=${token}(&|$)`
 export const isMarkedFor = (url: string, token: string): boolean => isToken(token) && new RegExp(markerPattern(token)).test(url)
 
 // --- operations: the defaults, overridden by what the page hook learned ---
@@ -190,7 +190,7 @@ export function installFirefoxHeaderListener() {
             if (value) headers.push({ name: 'Cookie', value })
             return { requestHeaders: headers }
         },
-        { urls: [`https://x.com/*${MARKER}=*`, `https://api.x.com/*${MARKER}=*`] },
+        { urls: [`https://x.com/*${MARKER}=*`] },
         ['blocking', 'requestHeaders'],
     )
 }

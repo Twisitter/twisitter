@@ -1,0 +1,42 @@
+Answers for the stores' privacy forms: the Chrome Web Store's Privacy tab and the same fields in Edge Partner Center. Firefox has no such form, and its data collection stays "none". Each justification field takes 1,000 characters at most.
+
+Update this file whenever a permission changes, or what the extension does with one.
+
+Privacy policy URL: https://twisitter.com/privacy (not live yet; PRIVACY.md is its text)
+Remote code: No
+Data usage: tick Authentication information and Website content, and all three certifications. Leave Personally identifiable information unticked: an X handle is a pseudonym.
+
+
+SINGLE PURPOSE
+
+To tell X users when X shows them their own replies as normal but hides them from other people, by comparing their view with a second X account's view.
+
+
+HOST PERMISSIONS
+
+x.com only. The background reads the pages X's own web app reads: a post and its replies, a post's hidden-replies page, a reply opened directly, and the user's own Replies tab. It reads them as the user, with their X login, and, if they connect one, as their second X account, to compare what each one sees. Its content script runs on x.com pages: it notices the replies the user posts there, reads which account the page is signed in as and which request settings the page uses, and adds a note to replies X hides from others. It makes no requests to other sites, and it never posts or changes anything on X.
+
+
+COOKIES
+
+Used only when the user connects an optional second X account. The extension saves the user's own x.com cookies and clears them from the browser, so the user can sign in to their second account on X's own login page. Once that account is signed in, it saves that account's x.com cookies for the extension's own requests, clears them from the browser, and puts the user's own cookies back. The second account's cookies stay in the extension's storage and are only ever sent to x.com, never to the developer or any third party.
+
+
+DECLARATIVENETREQUESTWITHHOSTACCESS
+
+Twisitter compares how the user's replies look to them with how they look to the user's second X account. The fetch API can't set cookies, so one session rule puts the second account's x.com cookies on the extension's own GET requests that carry the extension's marker. The rule is limited to x.com, to requests from the extension's background (never the user's tabs), and to GET requests. It only sets that request header. It never blocks, redirects, or reads requests or responses.
+
+
+STORAGE
+
+Holds, in chrome.storage.local only: the user's X account id and handle; for each reply the extension watches, its id, the id of the post it answers, its first 500 characters and the results of its checks; the optional second account's handle, id and x.com cookies; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep the extension's pace slow. Nothing leaves the browser except the requests to x.com described above.
+
+
+NOTIFICATIONS
+
+Shows a notification when a check finds that X hides one of the user's replies from others (behind "Show probable spam", missing from the reply list, or hidden by the post's author). Each reply notifies once.
+
+
+ALARMS
+
+Schedules the background checks: one recurring alarm every five minutes, each checking at most one reply, so reads stay few and slow; a one-time alarm about two minutes after the user posts a reply, for its first check; and, during an optional second-account sign-in, a one-time alarm that ends a sign-in left open for 15 minutes, so the user's own login goes back.
