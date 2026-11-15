@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { pageUserFrom } from '../../src/src/capture'
-import { checkReply, positionOf, walkThread } from '../../src/src/check'
-import { explain, historyText, ordinal, positionText } from '../../src/src/describe'
+import { checkReply, HIDDEN_STATES, positionOf, walkThread, type ReplyState } from '../../src/src/check'
+import { explain, historyText, notification, ordinal, positionText } from '../../src/src/describe'
 import { HISTORY_MAX, withCheck, type CheckRecord, type HistoryEntry } from '../../src/src/store'
 import type { XTweet } from '../../src/src/timeline'
 import { fakeRead, fixture, IDS, ok } from './helpers'
@@ -151,5 +151,39 @@ describe('the signed-in accounts’ access flags', () => {
         expect(explain('missing', '@viewer', undefined, true, { viewer: false })).toMatch(/so its view may differ from most people's\.$/)
         expect(explain('hidden_by_author', '@viewer', undefined, false, { viewer: false })).not.toContain('holding')
         expect(explain('listed', '@viewer', undefined, undefined, { viewer: false })).not.toContain('holding')
+    })
+})
+
+// The notification a round sends: a reply's writer still sees it where they
+// left it, except when the post's author hid it
+describe('the notification', () => {
+    const one = (state: ReplyState, section?: string) => notification([{ text: 'Speaking from day one.', last: { state, section } }])
+
+    it('says in one sentence what others see, for each hidden state', () => {
+        // the probable-spam one is the message the intro video shows
+        expect(one('probable_spam')).toEqual({ title: 'X is hiding one of your replies', message: 'Your reply "Speaking from day one." shows for you, but X puts it under "Probable spam".' })
+        expect(one('probable_spam', 'Show more replies')!.message).toMatch(/ under "Show more replies"\.$/)
+        expect(one('missing')!.message).toBe('Your reply "Speaking from day one." shows for you, but others don\'t see it under the post.')
+        expect(one('unavailable')!.message).toBe('Your reply "Speaking from day one." shows for you, but others get "This Post is unavailable" instead.')
+        for (const state of HIDDEN_STATES) {
+            expect(one(state)!.title).toBe('X is hiding one of your replies')
+            expect(one(state)!.message).toMatch(/\.$/)
+            // the old message for anything but probable spam: "X puts it from others"
+            expect(one(state)!.message).not.toContain('puts it from')
+        }
+    })
+
+    it('never says a reply the post’s author hid shows for its writer: it’s gone from the thread for them too', () => {
+        expect(one('hidden_by_author')!.message).toBe('Your reply "Speaking from day one." was hidden by the post\'s author. Others find it only on the post\'s hidden-replies page.')
+        const many = notification([
+            { text: 'a', last: { state: 'probable_spam' } },
+            { text: 'b', last: { state: 'hidden_by_author' } },
+        ])
+        expect(many).toEqual({ title: 'X is hiding 2 of your replies', message: 'X hides them from others without telling you. Open Twisitter to see them.' })
+    })
+
+    it('quotes up to 80 characters of the reply, and sends nothing for no replies', () => {
+        expect(notification([{ text: 'x'.repeat(100), last: { state: 'missing' } }])!.message).toContain(`"${'x'.repeat(80)}" shows`)
+        expect(notification([])).toBeNull()
     })
 })

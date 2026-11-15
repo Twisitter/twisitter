@@ -269,8 +269,8 @@ function welcomeSection(s: State) {
         el(
             'p',
             {},
-            'X can hide a reply from everyone but the person who wrote it: behind "Show probable spam", out of the reply list, or on a post\u2019s hidden-replies page. ',
-            'Its writer still sees it where they left it, and X doesn\u2019t say. Twisitter compares your view with a second X account\u2019s view and tells you when they differ.',
+            'X can hide a reply from others without telling its writer: behind "Show probable spam", out of the reply list, or on a post\u2019s hidden-replies page. ',
+            'Its writer\u2019s own Replies tab still shows it as normal. Twisitter compares your view with a second X account\u2019s view and tells you when they differ.',
         ),
         el(
             'ol',

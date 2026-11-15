@@ -1,4 +1,5 @@
-// The words for a reply's state, shared by the popup and the in-page note
+// The words for a reply's state, shared by the popup, the in-page note and the
+// notification
 
 import type { Position, ReplyState } from './check'
 import type { HistoryEntry } from './store'
@@ -50,6 +51,29 @@ export function explain(state: ReplyState, viewer: string, section?: string, aut
             return `${viewer} can't see the post it replies to, so the check can't say.`
         default:
             return 'The check couldn’t finish; it will try again.'
+    }
+}
+
+// The notification for replies a round just found hidden, null for none. A
+// reply's writer still sees it where they left it, except when the post's
+// author hid it: then it's gone from the thread for them too.
+export function notification(items: Array<{ text?: string; last?: { state: ReplyState; section?: string } }>): { title: string; message: string } | null {
+    if (!items.length) return null
+    if (items.length > 1) return { title: `X is hiding ${items.length} of your replies`, message: 'X hides them from others without telling you. Open Twisitter to see them.' }
+    const { text, last } = items[0]
+    const reply = `"${(text || '').slice(0, 80)}"`
+    const title = 'X is hiding one of your replies'
+    switch (last?.state) {
+        case 'probable_spam':
+            return { title, message: `Your reply ${reply} shows for you, but X puts it under "${last.section || 'Probable spam'}".` }
+        case 'missing':
+            return { title, message: `Your reply ${reply} shows for you, but others don't see it under the post.` }
+        case 'unavailable':
+            return { title, message: `Your reply ${reply} shows for you, but others get "This Post is unavailable" instead.` }
+        case 'hidden_by_author':
+            return { title, message: `Your reply ${reply} was hidden by the post's author. Others find it only on the post's hidden-replies page.` }
+        default:
+            return { title, message: `X hides your reply ${reply} from others without telling you.` }
     }
 }
 

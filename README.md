@@ -5,7 +5,8 @@ replies are shown to them as normal but hidden from everyone else.
 
 X can file a reply under "Show probable spam", leave it out of a post's reply
 list altogether, or let the post's author hide it. The reply's writer is never
-told, and still sees the reply where they left it. Twisitter compares the
+told. In the first two cases they still see the reply where they left it, and
+in all three their own Replies tab shows it as normal. Twisitter compares the
 writer's view with a second X account's view and reports when they differ, and
 why.
 

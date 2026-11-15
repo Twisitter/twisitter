@@ -9,6 +9,7 @@
 import api from './api'
 import { checkReply, isFinding, type CheckOutcome, type Read } from './check'
 import { getSecondAccount, isConnecting } from './connect'
+import { notification } from './describe'
 import { readAsSecond, readAsUser, readsInWindow, READS_PER_WINDOW, type SecondAccount } from './requests'
 import {
     getLocal,
@@ -268,17 +269,14 @@ export async function updateBadge() {
 async function notify(keys: string[]) {
     if (!keys.length) return
     const tracked = await getTracked()
-    const items = keys.map(k => tracked[k.split(':')[0]]).filter(Boolean)
-    const one = items.length === 1 ? items[0] : null
-    const what = one?.last?.state === 'probable_spam' ? `under "${one.last.section || 'Probable spam'}"` : 'from others'
+    // none, when every reply named was dropped in the meantime
+    const words = notification(keys.map(k => tracked[k.split(':')[0]]).filter(Boolean))
+    if (!words) return
     try {
         await api.notifications.create(`twisitter-${Date.now()}`, {
             type: 'basic',
             iconUrl: api.runtime.getURL('icons/128.png'),
-            title: one ? 'X is hiding one of your replies' : `X is hiding ${items.length} of your replies`,
-            message: one
-                ? `Your reply "${(one.text || '').slice(0, 80)}" shows for you, but X puts it ${what}.`
-                : 'They show for you, but not for others. Open Twisitter to see them.',
+            ...words,
         })
     } catch {
         /* notifications off */
