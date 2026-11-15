@@ -29,12 +29,12 @@ Twisitter compares how the user's replies look to them with how they look to the
 
 STORAGE
 
-Holds, in chrome.storage.local only: the user's X account id and handle; for each reply the extension watches, its id, the id of the post it answers, its first 500 characters and the results of its checks; the optional second account's handle, id and x.com cookies; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep the extension's pace slow. Nothing leaves the browser except the requests to x.com described above.
+Holds, in chrome.storage.local only: the user's X account id and handle, and X's flag for whether it holds that account back; for each reply the extension watches, its id and date, the id of the post it answers, its first 500 characters and the results of its last 20 checks; the optional second account's handle, id, x.com cookies and the same flag; the state of each account's session; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep the extension's pace slow. Nothing leaves the browser except the requests to x.com described above.
 
 
 NOTIFICATIONS
 
-Shows a notification when a check finds that X hides one of the user's replies from others (behind "Show probable spam", missing from the reply list, or hidden by the post's author). Each reply notifies once.
+Shows a notification when a check finds that X hides one of the user's replies from others (behind "Show probable spam", missing from the reply list, unavailable to others, or hidden by the post's author). Each reply notifies once.
 
 
 ALARMS
