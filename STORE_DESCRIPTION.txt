@@ -5,8 +5,9 @@ X can file a reply under "Show probable spam", leave it out of the reply list al
 - Notices the replies you post on x.com, and the ones on your Replies tab from X's phone apps.
 - Checks each reply a few times over its first month, slowly, with a handful of reads.
 - Puts a note on hidden replies in x.com's own pages.
+- On another account's profile, checks its recent replies the way someone who doesn't follow it sees them.
 - Everything stays in your browser: your own sessions, X's own pages, no servers of ours.
 
 VERSION HISTORY:
 0.0.1
-First prototype: second-account checks for probable spam, missing replies and replies hidden by the post's author.
+First prototype: catches X hiding your replies, and checks other accounts' replies on request.

@@ -89,6 +89,12 @@ export const KEYS = {
     connectResult: 'connect_result',
     // the x.com tab step 1 of the welcome page opened (setup.ts)
     setupTab: 'setup_tab',
+    // the account check (account-check.ts): what each x.com tab scrolled of
+    // another account's Replies tab, the latest check, and its results
+    seenTabs: 'seen_tabs',
+    accountRun: 'account_run',
+    otherResults: 'other_results',
+    accountPrunedAt: 'account_pruned_at',
 } as const
 
 export const MINUTE = 60 * 1000

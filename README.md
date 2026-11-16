@@ -59,6 +59,26 @@ what most people see.
 It doesn't look at reach in other people's feeds: there's nothing to compare
 that against.
 
+## Checking another account
+
+On another account's profile, the popup offers "Check @name's replies". It
+covers the newest 20 of that account's replies to other accounts that the user
+has scrolled past on its Replies tab. X's own page reads the tab, and the page
+hook passes those answers on, so listing them costs no read. Each reply is then
+checked in its parent's reply list as above, as the user: to another account's
+replies, the user is already "others". When X's answer says the user follows,
+mutes or blocks the account, the user's view isn't an outsider's, so the second
+account reads instead, if one is connected. Without one, a follow is checked
+anyway with a caveat, and a mute or block isn't checked.
+
+There's no writer's view, so the check can't say what the writer sees, or tell
+a deleted reply from one X keeps from everyone ("couldn't say"). Replies in the
+account's own threads are left out. One check per click, never repeated in the
+background. A click within the hour reads nothing it already read, so a check
+stopped by the read limit goes on where it stopped. Results are kept 30 days, as
+ids, states and times, and a reply X hides gets the same note on x.com's pages
+as the user's own.
+
 ## How it works
 
 - **Capture.** A page hook (`src/src/inject.ts`, in the page's own world) reads
@@ -91,8 +111,9 @@ that against.
   which X may have ended.
 - **Only ordinary reads.** The second account opens posts and their replies
   (including "Show probable spam"), a post's hidden-replies page and replies
-  opened directly: what anyone browsing X opens. No searches. Who is signed in
-  comes from x.com's own pages, not from extra requests.
+  opened directly: what anyone browsing X opens. An account check opens the
+  same pages, as the user. No searches. Who is signed in comes from x.com's own
+  pages, not from extra requests.
 - **Pace.** A reply is checked about two minutes after it's seen, then at an
   hour, six hours, a day, three days, a week, two weeks and a month. A check
   that stops early (X asks for a pause, an error) tries again in a quarter
@@ -101,6 +122,8 @@ that against.
   per five-minute round; reads go one at a time, 2.5 s apart, at most 60 per 15
   minutes per account (X allows 300 `TweetDetail` reads per 15 minutes). The
   Replies tab adds replies from the last 30 days; older ones come in by link.
+  An account check stops before it would pass 60 reads per 15 minutes as the
+  user, or 30 as the second account, which leaves the rounds the rest.
 - **Learning X's client.** X changes GraphQL queryIds and feature flags with
   each web client. The page hook sends the ones the page uses; the defaults in
   `src/src/x-api.ts` are from 2026-11-14.

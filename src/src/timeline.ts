@@ -13,6 +13,8 @@ export interface XTweet {
     authorId?: string
     screenName?: string
     inReplyTo?: string
+    // the account the reply answers: another account's post, or its own thread
+    inReplyToUserId?: string
     conversationId?: string
     text?: string
     createdAt?: string
@@ -28,6 +30,27 @@ export interface XTweet {
     // every tweet: false while X holds an account back until it's sure a
     // person runs it ("Unlock more on X", /i/graduated-access)
     graduated?: boolean
+    // how the account that read the answer relates to the author, from the
+    // same record (relationship_perspectives, seen 2026-11-15)
+    relation?: ReaderRelation
+}
+
+// The reading account's follow, mute and block of an author: each changes
+// what X shows that account
+export interface ReaderRelation {
+    following?: boolean
+    muting?: boolean
+    blocking?: boolean
+}
+const RELATION_FIELDS = ['following', 'muting', 'blocking'] as const
+// From an X user record: relationship_perspectives, or the older legacy fields
+export function relationOf(user: any): ReaderRelation | undefined {
+    const out: ReaderRelation = {}
+    for (const k of RELATION_FIELDS) {
+        const v = user?.relationship_perspectives?.[k] ?? user?.legacy?.[k]
+        if (typeof v === 'boolean') out[k] = v
+    }
+    return Object.keys(out).length ? out : undefined
 }
 
 export interface TimelineTweet extends XTweet {
@@ -95,12 +118,14 @@ export function readTweetResult(r: any): XTweet | null {
     const legacy = r.legacy || {}
     const user = r.core?.user_results?.result || {}
     const graduated = [user.has_graduated_access, user.legacy?.has_graduated_access].find(v => typeof v === 'boolean')
+    const relation = relationOf(user)
     return {
         id: String(r.rest_id || legacy.id_str || ''),
         kind: 'tweet',
         authorId: String(user.rest_id || legacy.user_id_str || '') || undefined,
         screenName: String(user.core?.screen_name || user.legacy?.screen_name || '') || undefined,
         inReplyTo: legacy.in_reply_to_status_id_str || undefined,
+        inReplyToUserId: legacy.in_reply_to_user_id_str || undefined,
         conversationId: legacy.conversation_id_str || undefined,
         text: String(r.note_tweet?.note_tweet_results?.result?.text || legacy.full_text || ''),
         createdAt: legacy.created_at || undefined,
@@ -108,6 +133,7 @@ export function readTweetResult(r: any): XTweet | null {
         ...(typeof legacy.favorite_count === 'number' ? { likeCount: legacy.favorite_count } : {}),
         ...(typeof legacy.retweet_count === 'number' ? { repostCount: legacy.retweet_count } : {}),
         ...(graduated !== undefined ? { graduated } : {}),
+        ...(relation ? { relation } : {}),
     }
 }
 

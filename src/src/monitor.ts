@@ -78,7 +78,7 @@ async function noteAnswer(who: Who, answer: XAnswer): Promise<XAnswer> {
     return answer
 }
 export const readAsUserNoted: Read = async (name, variables) => noteAnswer('user', await readAsUser(name, variables))
-const readAsSecondNoted =
+export const readAsSecondNoted =
     (second: SecondAccount): Read =>
     async (name, variables) => {
         const answer = await readAsSecond(second, name, variables)

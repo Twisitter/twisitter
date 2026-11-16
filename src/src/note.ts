@@ -1,8 +1,8 @@
 // The note on a reply X hides from others, in x.com's own pages: the thread,
-// the reply's page, the user's Replies tab. Built with DOM calls only.
+// the reply's page, a Replies tab. Built with DOM calls only.
 
 import type { ReplyState } from './check'
-import { ago, explain, stateLabel } from './describe'
+import { ago, explain, explainOther, stateLabel } from './describe'
 
 export interface PageNote {
     state: ReplyState
@@ -12,6 +12,9 @@ export interface PageNote {
     authorSees?: boolean
     graduated?: boolean
     viewerGraduated?: boolean
+    // another account's reply, from an account check: no writer's view
+    other?: boolean
+    follows?: boolean
 }
 
 const NOTE_CLASS = 'twisitter-note'
@@ -33,7 +36,10 @@ function buildNote(note: PageNote): HTMLElement {
     const title = document.createElement('strong')
     title.textContent = `Twisitter: ${stateLabel(note.state, note.section)}`
     const body = document.createElement('span')
-    body.textContent = ` ${explain(note.state, note.viewer, note.section, note.authorSees, { author: note.graduated, viewer: note.viewerGraduated })} Checked ${ago(note.at)}.`
+    const why = note.other
+        ? explainOther(note.state, note.viewer, { section: note.section, follows: note.follows, graduated: note.graduated })
+        : explain(note.state, note.viewer, note.section, note.authorSees, { author: note.graduated, viewer: note.viewerGraduated })
+    body.textContent = ` ${why} Checked ${ago(note.at)}.`
     box.append(title, body)
     // a click on the note shouldn't open the tweet
     box.addEventListener('click', e => e.stopPropagation())

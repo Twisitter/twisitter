@@ -3,6 +3,7 @@
 // service worker woken by an event hears it.
 
 import api from './src/api'
+import { accountState, forgetAllTabs, forgetTab, noteRepliesTab, openRepliesTab, otherNotes, pruneAccountChecks, startAccountCheck } from './src/account-check'
 import { HIDDEN_STATES, isFinding } from './src/check'
 import {
     applySecondAccount,
@@ -63,6 +64,7 @@ const pageTweet = (t: any) =>
               id: t.id,
               kind: 'tweet' as const,
               inReplyTo: t.inReplyTo || undefined,
+              inReplyToUserId: isTweetId(t.inReplyToUserId) ? t.inReplyToUserId : undefined,
               authorId: isTweetId(t.authorId) ? t.authorId : undefined,
               screenName: typeof t.screenName === 'string' ? t.screenName.slice(0, 15) : undefined,
               text: typeof t.text === 'string' ? t.text.slice(0, 500) : '',
@@ -87,10 +89,16 @@ async function onCreatedReply(msg: any, sender: chrome.runtime.MessageSender) {
     if (reply && (await trackReplies([reply])).length) tickSoon()
 }
 
-async function onRepliesTab(msg: any) {
+async function onRepliesTab(msg: any, sender: chrome.runtime.MessageSender) {
     if (await isConnecting()) return
     const me = await getLocal<Me | null>(KEYS.me, null)
-    if (!me || msg.userId !== me.userId || !Array.isArray(msg.tweets)) return
+    if (!Array.isArray(msg.tweets)) return
+    if (!me || msg.userId !== me.userId) {
+        // another account's tab: what an account check covers. Only on the
+        // browser's main cookies, the session the check reads as.
+        if (inMainCookieStore(sender.tab)) await noteRepliesTab(sender.tab?.id, msg, me)
+        return
+    }
     const replies = recentReplies(msg.tweets.slice(0, 100).map(pageTweet).filter(Boolean), me.userId)
     if ((await trackReplies(replies)).length) tickSoon()
 }
@@ -114,10 +122,12 @@ async function onPageUser(msg: any, sender: chrome.runtime.MessageSender) {
     if ((await getLocal<Me | null>(KEYS.me, null))?.userId === who.userId) await setupSignedIn()
 }
 
-// The in-page notes: replies X hides from others, by id
+// The in-page notes: replies X hides from others, by id. Another account's,
+// from an account check, unless the user watches that reply: then the
+// watched reply's own latest check decides, whatever it found.
 async function pageNotes() {
     const tracked = await getTracked()
-    const notes: Record<string, unknown> = {}
+    const notes: Record<string, unknown> = { ...(await otherNotes(Date.now(), new Set(Object.keys(tracked)))) }
     for (const t of Object.values(tracked)) {
         if (t.last && HIDDEN_STATES.has(t.last.state) && isFinding(t.last))
             notes[t.id] = { state: t.last.state, section: t.last.section, viewer: t.last.viewer, at: t.last.at, authorSees: t.last.authorSees, graduated: t.last.graduated, viewerGraduated: t.last.viewerGraduated }
@@ -132,7 +142,8 @@ async function tellXTabs() {
 
 // --- the popup's view of things ---
 
-async function getState() {
+// tabId: the x.com tab the popup was opened over, for its account check
+async function getState(tabId?: number) {
     const tracked = Object.values(await getTracked()).sort((a, b) => (b.createdAt || b.capturedAt) - (a.createdAt || a.capturedAt))
     const second = await getSecondAccount()
     const me = await getLocal<Me | null>(KEYS.me, null)
@@ -150,6 +161,7 @@ async function getState() {
         lastTick: await getLocal(KEYS.lastTick, 0),
         reads: { user: await readsInWindow('user'), second: await readsInWindow('second') },
         tracked,
+        account: tabId !== undefined ? await accountState(tabId) : null,
     }
 }
 
@@ -179,7 +191,7 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
             case 'created-reply':
                 return reply(onCreatedReply(msg, sender).then(() => ({ ok: true })))
             case 'replies-tab':
-                return reply(onRepliesTab(msg).then(() => ({ ok: true })))
+                return reply(onRepliesTab(msg, sender).then(() => ({ ok: true })))
             case 'page-user':
                 return reply(onPageUser(msg, sender).then(() => ({ ok: true })))
             case 'page-notes':
@@ -196,7 +208,14 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
     if (!isOwnPage(sender)) return
     switch (msg.action) {
         case 'get-state':
-            return reply(getState())
+            return reply(getState(Number.isInteger(msg.tabId) ? msg.tabId : undefined))
+        case 'check-account':
+            // answers once the check has begun; the popup follows it in storage
+            if (!Number.isInteger(msg.tabId)) return
+            return reply(startAccountCheck(msg.tabId, () => void tellXTabs()).then(({ ok, error }) => ({ ok, error })))
+        case 'open-replies-tab':
+            if (!Number.isInteger(msg.tabId) || typeof msg.screenName !== 'string') return
+            return reply(openRepliesTab(msg.tabId, msg.screenName))
         case 'connect-start':
             return reply(getLocal<Me | null>(KEYS.me, null).then(me => startConnect(me?.userId || '')))
         case 'connect-cancel':
@@ -238,7 +257,7 @@ async function devAction(cmd: string, args: any): Promise<unknown> {
             return runProbe({ focalId: String(args?.focalId || ''), replyId: args?.replyId, txid: args?.useTxid ? devTxid : undefined })
         }
         case 'state':
-            return getState()
+            return getState(Number.isInteger(args?.tabId) ? args.tabId : undefined)
         case 'tick':
             return afterChecks(runTick({ force: !!args?.force, only: args?.only }))
         case 'track-link':
@@ -255,6 +274,12 @@ async function devAction(cmd: string, args: any): Promise<unknown> {
             return { ok: true }
         case 'disconnect':
             return disconnectSecond().then(() => ({ ok: true }))
+        case 'check-account': {
+            // the popup's button, waiting for the check to end
+            const started = await startAccountCheck(Number(args?.tabId), () => void tellXTabs())
+            if (started.done) await started.done
+            return { ok: started.ok, error: started.error, run: await getLocal(KEYS.accountRun, null) }
+        }
         case 'connect-start':
             // the same as the popup's button; the person still signs in on X's page
             return getLocal<Me | null>(KEYS.me, null).then(me => startConnect(me?.userId || ''))
@@ -277,6 +302,8 @@ api.alarms.onAlarm.addListener(alarm => {
             .catch(() => {})
             .then(() => afterChecks(runTick()))
             .catch(() => {})
+        // old account-check data, at most hourly
+        pruneAccountChecks().catch(() => {})
     } else if (alarm.name === CONNECT_ALARM) {
         recoverConnect().catch(() => {})
     }
@@ -312,6 +339,14 @@ api.tabs.onUpdated.addListener((tabId, changeInfo) => {
 })
 api.tabs.onRemoved.addListener(tabId => {
     setupTabClosed(tabId).catch(() => {})
+    // what that tab scrolled of another account's Replies tab
+    forgetTab(tabId).catch(() => {})
+})
+
+// A browser start: no tab closed by quitting said so (tabs.onRemoved), and
+// every tab is new, so what tabs scrolled of other accounts goes
+api.runtime.onStartup.addListener(() => {
+    forgetAllTabs().catch(() => {})
 })
 
 api.runtime.onInstalled.addListener(details => {
@@ -327,6 +362,8 @@ applySecondAccount().catch(() => {})
 recoverConnect().catch(() => {})
 ensureAlarms().catch(() => {})
 updateBadge().catch(() => {})
+// account-check data past its time (at most hourly; the alarm does it too)
+pruneAccountChecks().catch(() => {})
 
 // a reply posted moments ago with an alarm lost to a worker restart
 getTracked()

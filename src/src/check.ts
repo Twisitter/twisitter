@@ -13,7 +13,7 @@
 // list as the author, which says whether X shows the author something else.
 
 import { classifyAnswer, describeAnswer, moderatedVariables, tweetDetailVariables, type AnswerKind, type OpName, type XAnswer } from './x-api'
-import { createdAtMs, isPromptCursor, LOWER_SECTIONS, parseTimeline, type TimelineCursor, type TimelineTweet, type XTweet } from './timeline'
+import { createdAtMs, isPromptCursor, LOWER_SECTIONS, parseTimeline, type ReaderRelation, type TimelineCursor, type TimelineTweet, type XTweet } from './timeline'
 
 export type Read = (name: OpName, variables: object) => Promise<XAnswer>
 
@@ -65,6 +65,10 @@ export interface CheckOutcome {
     graduated?: boolean
     // where the reply sat, or how many replies others see when it isn't listed
     position?: Position
+    // how the account that looked relates to the reply's author, from the
+    // reply's own record in the looker's answers: a follow, mute or block
+    // changes what X shows it
+    viewerRelation?: ReaderRelation
     reads: number
     // why the check stopped early
     stop?: Exclude<AnswerKind, 'ok'>
@@ -91,6 +95,8 @@ interface ThreadWalk {
     // X's conversationSection for the reply, and its author's access flag
     quality?: string
     graduated?: boolean
+    // the reader's relation to the reply's author, from the reply's record
+    relation?: ReaderRelation
     position?: Position
     parent?: XTweet
     // the list went on past the pages read
@@ -197,6 +203,7 @@ export async function walkThread(
             walk.found = true
             walk.quality = hit.quality
             walk.graduated = hit.graduated
+            if (hit.relation) walk.relation = hit.relation
             walk.behindPrompt = part === 'fold'
             // a heading ("Probable spam"), or the button's words without "Show"
             walk.section = hit.section || (walk.behindPrompt ? headingFrom(entry.action || cursor?.actionText || 'Show more replies') : '')
@@ -259,7 +266,7 @@ const headingFrom = (actionText: string) => {
 }
 
 // X's own signals about a reply, from whichever answers carried it
-type Signals = Pick<CheckOutcome, 'quality' | 'authorQuality' | 'graduated' | 'position'>
+type Signals = Pick<CheckOutcome, 'quality' | 'authorQuality' | 'graduated' | 'position' | 'viewerRelation'>
 const take = (signals: Signals, from: { quality?: string; graduated?: boolean } | undefined, qualityKey?: 'quality' | 'authorQuality') => {
     if (!from) return
     if (qualityKey && from.quality && signals[qualityKey] === undefined) signals[qualityKey] = from.quality
@@ -284,6 +291,8 @@ async function runCheck(reply: ReplyRef, asViewer: Read, asAuthor: Read | undefi
     reads += walk.reads
     take(signals, walk, 'quality')
     if (walk.position) signals.position = walk.position
+    // only the looker's own reads say how the looker relates to the author
+    if (walk.relation) signals.viewerRelation = walk.relation
     if (walk.stop) return stopped(walk.stop, `reading the reply list: ${walk.stopDetail}`)
     if (walk.found && !walk.behindPrompt) return { state: 'listed', reads, detail: 'listed under the post' + labelNote(walk.quality, false) }
     // nobody can read the replies of a post they can't see
@@ -314,7 +323,10 @@ async function runCheck(reply: ReplyRef, asViewer: Read, asAuthor: Read | undefi
             if (direct.stop) return stopped(direct.stop, `opening the reply: ${direct.stopDetail}`)
             const own = direct.own
             // the reply's own page carries its author's record too
-            if (own?.kind === 'tweet') take(signals, own)
+            if (own?.kind === 'tweet') {
+                take(signals, own)
+                if (own.relation && !signals.viewerRelation) signals.viewerRelation = own.relation
+            }
             if (!own || own.kind !== 'tweet') {
                 const note = own?.note || ''
                 // a deleted reply is gone for everyone: nothing to compare

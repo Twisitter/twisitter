@@ -1,11 +1,13 @@
 // What the page hook (inject.ts) takes from the page's own answers. Pure, so
 // the tests run it on recorded answers.
 
-import { readTweetResult, type XTweet } from './timeline'
+import { readTweetResult, relationOf, type ReaderRelation, type XTweet } from './timeline'
 
 export interface CapturedTweet {
     id: string
     inReplyTo: string
+    // the account it answers, '' for a post
+    inReplyToUserId: string
     authorId: string
     screenName: string
     text: string
@@ -17,6 +19,7 @@ const compact = (t: XTweet | null): CapturedTweet | null =>
         ? {
               id: t.id,
               inReplyTo: t.inReplyTo || '',
+              inReplyToUserId: t.inReplyToUserId || '',
               authorId: t.authorId || '',
               screenName: t.screenName || '',
               text: (t.text || '').slice(0, 500),
@@ -51,6 +54,49 @@ export function tweetsIn(json: any, limit = 100): CapturedTweet[] {
     }
     visit(json, 0)
     return out
+}
+
+// The page's signed-in account's follow, mute and block of another account,
+// as X's user record for it says (relationship_perspectives, seen
+// 2026-11-15). Each changes what X shows, so an outsider's view needs none.
+export type Relation = ReaderRelation
+
+// The record X sends for one account, wherever it sits in an answer
+function userRecord(json: any, userId: string): any {
+    let found: any = null
+    const visit = (o: any, depth: number) => {
+        if (found || !o || typeof o !== 'object' || depth > 20) return
+        if (o.rest_id === userId && (o.__typename === 'User' || o.core || o.legacy)) {
+            found = o
+            return
+        }
+        for (const v of Object.values(o)) visit(v, depth + 1)
+    }
+    visit(json, 0)
+    return found
+}
+
+export interface RepliesTabPage {
+    // the profile the tab belongs to
+    userId: string
+    screenName: string
+    // the tab's first page (no cursor): it starts what the user has scrolled
+    first: boolean
+    relation: Relation
+    tweets: CapturedTweet[]
+}
+
+// A Replies-tab page the page loaded (UserRepliesTimeline): its request's
+// variables and X's answer
+export function repliesTabCapture(variables: any, json: any): RepliesTabPage | null {
+    const userId = variables?.userId
+    if (typeof userId !== 'string' || !/^\d{1,25}$/.test(userId)) return null
+    const tweets = tweetsIn(json)
+    if (!tweets.length) return null
+    const user = userRecord(json, userId)
+    const relation: Relation = relationOf(user) || {}
+    const screenName = String(user?.core?.screen_name || user?.legacy?.screen_name || tweets.find(t => t.authorId === userId)?.screenName || '')
+    return { userId, screenName: /^\w{1,15}$/.test(screenName) ? screenName : '', first: !variables.cursor, relation, tweets }
 }
 
 // The account an x.com page is signed in as. X's server writes it into the

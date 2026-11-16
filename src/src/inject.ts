@@ -4,11 +4,12 @@
 //   - the page's TweetDetail, ModeratedTimeline and UserRepliesTimeline
 //     requests: their queryIds and feature flags, which X changes with each
 //     new web client, and the web app's token;
-//   - UserRepliesTimeline answers: a Replies tab the user opened.
+//   - UserRepliesTimeline answers: a Replies tab the user opened, theirs or
+//     another account's, and whether it was the tab's first page.
 // It sends what it finds to the content script with window.postMessage. It
 // makes no requests and changes nothing on the page.
 
-import { createdTweet, tweetsIn } from './capture'
+import { createdTweet, repliesTabCapture } from './capture'
 import { MSG_SOURCE } from './constants'
 
 export {}
@@ -63,11 +64,11 @@ function onCreateTweet(requestBody: any, responseJson: any) {
     if (tweet) send({ type: 'created-reply', ...tweet })
 }
 
+// Any profile's Replies tab: the user's own adds replies to watch, another's
+// is what an account check covers (account-check.ts)
 function onRepliesTab(params: URLSearchParams, responseJson: any) {
-    const userId = parseJson(params.get('variables'))?.userId
-    if (typeof userId !== 'string') return
-    const tweets = tweetsIn(responseJson)
-    if (tweets.length) send({ type: 'replies-tab', userId, tweets })
+    const page = repliesTabCapture(parseJson(params.get('variables')), responseJson)
+    if (page) send({ type: 'replies-tab', ...page })
 }
 
 function onAnswer(url: string, method: string, requestBody: any, responseText: string) {

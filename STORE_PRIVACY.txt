@@ -9,12 +9,12 @@ Data usage: tick Authentication information and Website content, and all three c
 
 SINGLE PURPOSE
 
-To tell X users when X shows them their own replies as normal but hides them from other people, by comparing their view with a second X account's view.
+To tell X users when X hides replies from other people without telling the writer: their own replies, by comparing their view with a second X account's view, and, when they ask, another account's replies, as someone who doesn't follow that account sees them.
 
 
 HOST PERMISSIONS
 
-x.com only. The background reads the pages X's own web app reads: a post and its replies, a post's hidden-replies page, a reply opened directly, and the user's own Replies tab. It reads them as the user, with their X login, and, if they connect one, as their second X account, to compare what each one sees. Its content script runs on x.com pages: it notices the replies the user posts there, reads which account the page is signed in as and which request settings the page uses, and adds a note to replies X hides from others. It makes no requests to other sites, and it never posts or changes anything on X.
+x.com only. The background reads the pages X's own web app reads: a post and its replies, a post's hidden-replies page, a reply opened directly, and the user's own Replies tab. It reads them as the user, with their X login, and, if they connect one, as their second X account, to compare what each one sees. When the user asks to check another account, it reads the posts that account replied to, the same way, as the user, or as the second account if the user follows, mutes or blocks that account. Its content script runs on x.com pages: it notices the replies the user posts there and the replies on any Replies tab the user opens, reads which account the page is signed in as and which request settings the page uses, and adds a note to replies X hides from others. It makes no requests to other sites, and it never posts or changes anything on X.
 
 
 COOKIES
@@ -29,7 +29,7 @@ Twisitter compares how the user's replies look to them with how they look to the
 
 STORAGE
 
-Holds, in chrome.storage.local only: the user's X account id and handle, and X's flag for whether it holds that account back; for each reply the extension watches, its id and date, the id of the post it answers, its first 500 characters and the results of its last 20 checks; the optional second account's handle, id, x.com cookies and the same flag; the state of each account's session; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep the extension's pace slow. Nothing leaves the browser except the requests to x.com described above.
+Holds, in chrome.storage.local only: the user's X account id and handle, and X's flag for whether it holds that account back; for each reply the extension watches, its id and date, the id of the post it answers, its first 500 characters and the results of its last 20 checks; for another account's Replies tab the user opens, that account's id, handle and the user's follow, mute and block status, and the ids and dates of its replies, for six hours; for each account check the user asks for, each reply's id, date and result and the check's progress, for 30 days; the optional second account's handle, id, x.com cookies and the same flag; the state of each account's session; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep its pace slow. Nothing leaves the browser but the requests to x.com above.
 
 
 NOTIFICATIONS

@@ -205,3 +205,14 @@ export const readAnswer = async (response: Response): Promise<XAnswer> => {
 // A tweet's link, for the popup and notifications
 export const tweetUrl = (id: string, screenName?: string) =>
     `https://x.com/${screenName ? encodeURIComponent(screenName) : 'i/web'}/status/${id}`
+
+// x.com's own pages at the top level, which look like a profile's address
+const NOT_PROFILES = new Set([
+    'home', 'explore', 'notifications', 'messages', 'i', 'settings', 'search', 'compose', 'login', 'logout', 'signup', 'tos',
+    'privacy', 'jobs', 'lists', 'bookmarks', 'communities', 'premium', 'grok', 'hashtag', 'account', 'intent', 'share', 'download',
+])
+// The profile an x.com address shows (its posts or its Replies tab), or null
+export function profileFromUrl(url: string | undefined): string | null {
+    const m = String(url || '').match(/^https:\/\/x\.com\/([A-Za-z0-9_]{1,15})(?:\/with_replies)?\/?(?:[?#].*)?$/)
+    return m && !NOT_PROFILES.has(m[1].toLowerCase()) ? m[1] : null
+}

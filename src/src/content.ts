@@ -34,14 +34,20 @@ function main() {
         return api.runtime.sendMessage(msg).catch(() => null)
     }
 
+    // who this page is signed in as, from X's own page state (sendPageUser)
+    let pageUserId: string | null = null
+
     window.addEventListener('message', event => {
         if (event.source !== window || !extensionAlive()) return
         const data = event.data
         if (!data || typeof data !== 'object') return
         if (data.source === MSG_SOURCE) {
             const { source, ...rest } = data
-            // the checked type is the action: a field the page sent can't replace it
-            if (['learned-op', 'bearer', 'created-reply', 'replies-tab'].includes(rest.type)) toBackground({ ...rest, action: rest.type })
+            // the checked type is the action, and a Replies-tab page carries
+            // the account this page is signed in as, whose follows its answer
+            // shows: fields the page sent can't replace either
+            if (rest.type === 'replies-tab') toBackground({ ...rest, action: rest.type, viewerId: pageUserId })
+            else if (['learned-op', 'bearer', 'created-reply'].includes(rest.type)) toBackground({ ...rest, action: rest.type })
             else if (__DEV__ && rest.type === 'dev-txid') toBackground({ ...rest, action: 'dev-txid' })
         } else if (__DEV__ && data.source === DEV_SOURCE) {
             // dev builds: lets a test drive the extension from an x.com tab
@@ -57,7 +63,10 @@ function main() {
         for (const script of Array.from(document.scripts)) {
             if (script.src || !script.textContent?.includes('__INITIAL_STATE__')) continue
             const who = pageUserFrom(script.textContent)
-            if (who) toBackground({ action: 'page-user', ...who })
+            if (who) {
+                pageUserId = who.userId
+                toBackground({ action: 'page-user', ...who })
+            }
             return
         }
     }

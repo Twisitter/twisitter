@@ -1,5 +1,6 @@
 // The words for a reply's state, shared by the popup, the in-page note and the
-// notification
+// notification. The user's own replies get `explain`; another account's,
+// from an account check, get `explainOther`.
 
 import type { Position, ReplyState } from './check'
 import type { HistoryEntry } from './store'
@@ -51,6 +52,37 @@ export function explain(state: ReplyState, viewer: string, section?: string, aut
             return `${viewer} can't see the post it replies to, so the check can't say.`
         default:
             return 'The check couldn’t finish; it will try again.'
+    }
+}
+
+// Another account's reply, from an account check (account-check.ts): what the
+// account that looked saw. Nobody read the writer's view, so nothing is said
+// about what the writer sees.
+export function explainOther(
+    state: ReplyState,
+    viewer: string,
+    opts: { section?: string; follows?: boolean; graduated?: boolean; detail?: string } = {},
+): string {
+    // has_graduated_access false in X's own data: a likely reason
+    const held = opts.graduated === false ? ` X also holds its writer's account back until it's sure a person runs it (X's "Unlock more on X" notice)` : ''
+    switch (state) {
+        case 'listed':
+            // a follower may see what others don't: only a listed reply can mislead
+            return `${viewer} sees it under the post.${opts.follows ? ` ${viewer} follows its writer, though, and X may show followers replies it hides from others.` : ''}`
+        case 'probable_spam':
+            return `${viewer} sees it only after clicking "${showButton(opts.section)}", in Relevant order, and not at all in Recent order.${held && `${held}, a common reason for this.`}`
+        case 'missing':
+            return `${viewer} doesn't see it under the post at all, in any order, though its writer's Replies tab lists it and it opens from a direct link.${held && `${held}.`}`
+        case 'hidden_by_author':
+            return `The post's author hid it. ${viewer} finds it only on the post's "hidden replies" page.`
+        case 'unavailable':
+            return `${viewer} gets "This Post is unavailable" instead of the reply.`
+        case 'deleted':
+            return 'The reply was deleted.'
+        case 'parent_unavailable':
+            return `${viewer} can't see the post it replies to, so the check can't say.`
+        default:
+            return `The check couldn't say${opts.detail ? ` (${opts.detail})` : ''}.`
     }
 }
 

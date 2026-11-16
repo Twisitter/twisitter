@@ -2,10 +2,31 @@
 // Plain DOM: it asks the background for everything and redraws.
 
 import api from './api'
-import { isFinding, type ReplyState } from './check'
-import { ago, explain, historyText, positionText, stateLabel } from './describe'
+import { HIDDEN_STATES, isFinding, type ReplyState } from './check'
+import { ago, explain, explainOther, historyText, positionText, stateLabel } from './describe'
 import { KEYS, type Tracked } from './store'
-import { tweetUrl } from './x-api'
+import { profileFromUrl, tweetUrl } from './x-api'
+
+// An account check, as the background gives it for the tab (account-check.ts)
+type AccountView = {
+    seen: { userId: string; screenName: string; count: number; at: number; relationKnown: boolean } | null
+    plan: { reader: 'user' | 'second'; viewer: string; follows?: boolean; refuse?: string } | null
+    run: { reader: string; viewer: string; total: number; done: number; findings: number; updatedAt: number; state: 'running' | 'done' | 'stopped'; stop?: string } | null
+    results: Array<{
+        id: string
+        parentId: string
+        createdAt?: number
+        state: ReplyState
+        at: number
+        viewer: string
+        follows?: boolean
+        section?: string
+        graduated?: boolean
+        detail: string
+        lastTry?: { at: number; detail: string }
+    }>
+    max: number
+}
 
 type State = {
     version: string
@@ -21,6 +42,7 @@ type State = {
     lastTick: number
     reads: { user: number; second: number }
     tracked: Tracked[]
+    account: AccountView | null
 }
 
 const ask = (action: string, extra: Record<string, unknown> = {}): Promise<any> =>
@@ -51,6 +73,61 @@ const CONNECT_ERRORS: Record<string, string> = {
     no_x_tab: "Couldn't open x.com.",
     not_connecting: 'No sign-in is open.',
 }
+
+const ACCOUNT_ERRORS: Record<string, string> = {
+    already_checking: 'A check is running already.',
+    no_replies_tab: 'Open the Replies tab first, and scroll as far as you want checked.',
+    no_replies: 'No replies to other accounts on the Replies tab yet. Scroll it, then check.',
+    unknown_user: 'Twisitter needs to know your own X account first (step 1).',
+    own_account: 'These are your own replies, which Twisitter watches already.',
+    needs_second: 'You mute or block this account, so X keeps its replies from you. Connect a second account to check it.',
+    user_trouble: 'X isn’t taking reads with your account right now (see above).',
+    second_trouble: 'X isn’t taking reads with the second account right now (see above).',
+    no_tab: 'Couldn’t reach that x.com tab.',
+}
+
+// Why an account check stopped before its end
+const RUN_STOPS: Record<string, string> = {
+    read_limit: 'Twisitter keeps under a set number of reads per 15 minutes. Check again later to go on.',
+    rate_limited: 'X asked for a pause. Check again later to go on.',
+    signed_out: 'X stopped taking the sign-in it reads with.',
+    stale_client: 'X changed its web app. Open any x.com page so Twisitter picks up the change, then check again.',
+    connecting: 'A second account began signing in.',
+    account_changed: 'The account it reads with changed.',
+    other_account: 'x.com in this browser is signed in to your second account now.',
+    cut_off: 'It was cut off. Check again to go on.',
+    failing: 'X’s answers kept failing. Check again later to go on.',
+    reader_mutes: 'X says the account it read with mutes or blocks this account, so its view isn’t an outsider’s.',
+    reader_follows: 'X says you follow this account, so the next check reads as your second account. Check again to go on.',
+}
+
+// One state as a tally's words
+const TALLY: Record<ReplyState, string> = {
+    listed: 'shown under the post',
+    probable_spam: 'behind "Show probable spam"',
+    hidden_by_author: "hidden by the post's author",
+    missing: 'missing from the thread',
+    deleted: 'deleted',
+    unavailable: 'unavailable',
+    parent_unavailable: "on a post that can't be seen",
+    unknown: "couldn't say",
+}
+
+// The x.com profile the toolbar popup was opened over, for its account check.
+// Opened as a page, the popup has none, unless it's named (?tab=<id>, as the
+// end-to-end tests do).
+let target: { tabId: number; screenName: string } | null = null
+const asPage = !!location.hash || window.innerWidth > 500
+const targetReady = (async () => {
+    try {
+        const named = new URLSearchParams(location.search).get('tab')
+        const tab = named && /^\d{1,10}$/.test(named) ? await api.tabs.get(Number(named)) : asPage ? undefined : (await api.tabs.query({ active: true, currentWindow: true }))[0]
+        const screenName = profileFromUrl(tab?.url)
+        if (tab?.id != null && screenName) target = { tabId: tab.id, screenName }
+    } catch {
+        /* no tab to look at */
+    }
+})()
 
 // "I've signed in" found no X session yet: the sign-in notice asks before
 // loading the page anyway
@@ -89,7 +166,7 @@ async function act(name: string, run: () => Promise<any>) {
     await redraw()
     try {
         const r = await run()
-        if (r && r.ok === false) message = { text: CONNECT_ERRORS[r.error] || `Didn't work: ${r.error}`, bad: true }
+        if (r && r.ok === false) message = { text: CONNECT_ERRORS[r.error] || ACCOUNT_ERRORS[r.error] || `Didn't work: ${r.error}`, bad: true }
     } finally {
         busy = ''
         await redraw()
@@ -267,6 +344,115 @@ function checkSection(s: State) {
     )
 }
 
+// The account check for the profile the popup was opened over: another
+// account's replies, the newest the user scrolled past on its Replies tab, as
+// someone outside it sees them (account-check.ts)
+function othersSection(s: State) {
+    const a = s.account
+    if (!target || !a) return null
+    const { tabId, screenName: name } = target
+    // the user's own profile: those replies are watched already
+    if (s.me && s.me.screenName.toLowerCase() === name.toLowerCase()) return null
+    const head = el('div', {}, el('strong', { text: `@${name}'s replies` }))
+    const seen = a.seen && a.seen.screenName.toLowerCase() === name.toLowerCase() ? a.seen : null
+    if (!seen)
+        return el(
+            'section',
+            {},
+            head,
+            el('div', { class: 'small', text: `Check whether X hides @${name}'s replies from people who don't follow them. Open the Replies tab, and scroll as far as you want checked.` }),
+            el(
+                'div',
+                { class: 'actions' },
+                el('button', {
+                    class: 'primary',
+                    text: 'Open Replies tab',
+                    disabled: busy ? 'disabled' : undefined,
+                    onclick: () => act('open-tab', () => ask('open-replies-tab', { tabId, screenName: name })),
+                }),
+            ),
+        )
+    const { plan, run } = a
+    const running = run?.state === 'running'
+    const who = !plan || plan.refuse
+        ? ''
+        : plan.reader === 'second'
+          ? `You follow, mute or block @${name}, so this reads as ${plan.viewer} instead.`
+          : plan.follows
+            ? `You follow @${name}, and X may show followers replies it hides from others. Connect a second account for an outsider's view.`
+            : seen.relationKnown
+              ? `Reads as ${plan.viewer}, who doesn't follow @${name}, like anyone else browsing.`
+              : `Reads as ${plan.viewer}. X's page didn't say whether you follow @${name}.`
+    const status = !run
+        ? ''
+        : running
+          ? ''
+          : run.state === 'done'
+            ? `Checked ${run.total} ${run.total === 1 ? 'reply' : 'replies'} ${ago(run.updatedAt)} as ${run.viewer}.`
+            : `Stopped after ${run.done} of ${run.total}: ${RUN_STOPS[run.stop || ''] || run.stop}`
+    // how the checked replies came out, then the ones X hides
+    const tally = new Map<string, number>()
+    for (const r of a.results) {
+        const words = r.state === 'probable_spam' ? `behind "Show ${(r.section || 'probable spam').toLowerCase()}"` : TALLY[r.state]
+        tally.set(words, (tally.get(words) || 0) + 1)
+    }
+    const hidden = a.results.filter(r => HIDDEN_STATES.has(r.state))
+    return el(
+        'section',
+        {},
+        head,
+        el('div', {
+            class: 'small',
+            text: `${seen.count} ${seen.count === 1 ? 'reply' : 'replies'} to other accounts on the Replies tab so far${seen.count > a.max ? `; a check covers the newest ${a.max}` : ''}. Scrolling further adds more.`,
+        }),
+        who && el('div', { class: 'small muted', text: who }),
+        plan?.refuse && el('div', { class: 'notice bad small', text: ACCOUNT_ERRORS[plan.refuse] || plan.refuse }),
+        el(
+            'div',
+            { class: 'actions' },
+            el('button', {
+                class: 'primary',
+                text: running ? `Checking ${run!.done} of ${run!.total}…` : `Check @${name}'s replies`,
+                disabled: running || busy || s.connecting || !!plan?.refuse || !seen.count ? 'disabled' : undefined,
+                onclick: () => act('account', () => ask('check-account', { tabId })),
+            }),
+        ),
+        status && el('div', { class: 'small muted', text: status }),
+        tally.size > 0 &&
+            el('div', { class: 'small', text: `Of ${a.results.length} checked: ${[...tally].map(([words, n]) => `${n} ${words}`).join(', ')}.` }),
+        hidden.length > 0 &&
+            el(
+                'ul',
+                { class: 'replies' },
+                ...hidden.map(r =>
+                    el(
+                        'li',
+                        { class: 'reply' },
+                        el(
+                            'div',
+                            { class: 'row' },
+                            el('span', { class: `badge ${r.state === 'hidden_by_author' ? 'author' : 'finding'}`, text: stateLabel(r.state, r.section) }),
+                            el('span', { class: 'small muted', text: r.createdAt ? ago(r.createdAt) : '' }),
+                        ),
+                        el(
+                            'div',
+                            { class: 'why small' },
+                            explainOther(r.state, r.viewer, { section: r.section, follows: r.follows, graduated: r.graduated }) + ' ',
+                            el('span', { class: 'muted', text: `Checked ${ago(r.at)} as ${r.viewer}.` }),
+                        ),
+                        r.lastTry && el('div', { class: 'small muted', text: `Checked again ${ago(r.lastTry.at)}, but that check couldn't say (${r.lastTry.detail}).` }),
+                        el(
+                            'div',
+                            { class: 'actions small' },
+                            el('a', { href: tweetUrl(r.id, name), target: '_blank', text: 'Open the reply' }),
+                            el('a', { href: tweetUrl(r.parentId), target: '_blank', class: 'muted', text: 'Post it replies to' }),
+                        ),
+                    ),
+                ),
+            ),
+    )
+}
+
 // X's own section label for the reply, and for its author when that differs
 const xLabel = (quality: string, authorQuality?: string) =>
     `X's data files it as "${quality}"${authorQuality && authorQuality !== quality ? `, and as "${authorQuality}" for its author` : ''}. `
@@ -386,13 +572,15 @@ function devSection() {
 }
 
 async function render() {
-    const s: State = await ask('get-state')
+    await targetReady
+    const s: State = await ask('get-state', target ? { tabId: target.tabId } : {})
     const root = document.getElementById('root')!
     const parts: Array<[string, HTMLElement | null | false | undefined]> = [
         ['header', el('header', {}, el('h1', { text: 'Twisitter' }), el('span', { class: 'version', text: s?.version ? `v${s.version}` : '' }))],
         ['message', message && el('section', {}, el('div', { class: `notice ${message.bad ? 'bad' : ''}`, text: message.text }))],
         ['welcome', s && location.hash === '#welcome' && welcomeSection(s)],
         ['account', s && accountSection(s)],
+        ['others', s && othersSection(s)],
         ['check', s && checkSection(s)],
         ['replies', s && repliesSection(s)],
         ['dev', s?.dev && devSection()],
@@ -427,14 +615,15 @@ async function render() {
     }
 }
 
-if (location.hash || window.innerWidth > 500) document.body.classList.add('tab')
+if (asPage) document.body.classList.add('tab')
 redraw()
 ask('mark-seen')
 // a sign-in or a check finishing elsewhere shows up here
 const timer = setInterval(() => (document.hidden ? null : busy ? null : redraw()), 4000)
 window.addEventListener('unload', () => clearInterval(timer))
-// the account, step 1's tab, the second account and a sign-in's end show at once
-const SHOWN_AT_ONCE: string[] = [KEYS.me, KEYS.setupTab, KEYS.second, KEYS.connectPending, KEYS.connectResult]
+// the account, step 1's tab, the second account, a sign-in's end and an
+// account check's progress show at once
+const SHOWN_AT_ONCE: string[] = [KEYS.me, KEYS.setupTab, KEYS.second, KEYS.connectPending, KEYS.connectResult, KEYS.accountRun, KEYS.seenTabs]
 api.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && SHOWN_AT_ONCE.some(k => k in changes)) redraw()
 })
