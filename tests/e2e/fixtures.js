@@ -55,6 +55,20 @@ export const expect = test.expect
 // The background's dev actions (dev builds only)
 export const dev = (worker, cmd, args) => worker.evaluate(([c, a]) => globalThis.twisitterDev.action(c, a), [cmd, args])
 
+// A second account's sign-in has ended. Its tab reaching Twisitter's page
+// isn't that: the tab leaves X first, then the cookies change, then the result
+// is saved (connect.ts).
+export const signInEnded = worker =>
+    expect
+        .poll(
+            async () => {
+                const s = await dev(worker, 'state')
+                return !s.connecting && !!s.connectResult
+            },
+            { timeout: 10000 },
+        )
+        .toBe(true)
+
 export const popupUrl = id => `chrome-extension://${id}/src/popup.html`
 
 // A minimal x.com page: an <article> per tweet, the way X marks them up (a

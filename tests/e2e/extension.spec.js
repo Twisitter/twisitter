@@ -1,4 +1,4 @@
-import { dev, expect, fakeXPage, fixture, IDS, popupUrl, signedInAs, test } from './fixtures.js'
+import { dev, expect, fakeXPage, fixture, IDS, popupUrl, signedInAs, signInEnded, test } from './fixtures.js'
 
 const TOKEN = '0123456789abcdef0123456789abcdef'
 const second = {
@@ -283,6 +283,7 @@ test('connecting a second account saves its cookies and puts the user’s own ba
     await context.addCookies([cookie('auth_token', 'second-session'), cookie('ct0', 'second-csrf')])
     await tab.goto('https://x.com/home')
     await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 10000 })
+    await signInEnded(worker)
 
     expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
     const { second_account: saved } = await worker.evaluate(() => chrome.storage.local.get('second_account'))
@@ -330,7 +331,34 @@ test('the sign-in tab is left alone wherever X’s login flow goes, and finishes
     // the tab load a page, which says who signed in
     await context.addCookies([cookie('auth_token', 'second-session'), cookie('ct0', 'second-csrf')])
     await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
+    await signInEnded(worker)
     expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
+})
+
+test('signing in as the user’s own account by mistake keeps that fresh sign-in, and connects nothing', async ({ context, worker }) => {
+    const cookie = (name, value) => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', sameSite: 'None' })
+    await context.route('https://x.com/i/flow/login', route => route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({}) }))
+    // X's next page is signed in as the user again
+    await context.route('https://x.com/home', route =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({ head: signedInAs(IDS.authorUser, 'author') }) }),
+    )
+    await context.route(/^https:\/\/x\.com\/i\/api\//, route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{}}' }))
+    await context.addCookies([cookie('auth_token', 'main-session'), cookie('ct0', 'main-csrf')])
+    await dev(worker, 'set-local', { me: { userId: IDS.authorUser, screenName: 'author', at: Date.now() } })
+    expect(await dev(worker, 'connect-start')).toEqual({ ok: true })
+    const loginTab = () => context.pages().find(p => p.url() === 'https://x.com/i/flow/login')
+    await expect.poll(loginTab, { timeout: 10000 }).toBeTruthy()
+
+    // the user signs in again, as themselves: a fresh session of their own
+    await context.addCookies([cookie('auth_token', 'fresh-session'), cookie('ct0', 'fresh-csrf')])
+    await loginTab().waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
+    await signInEnded(worker)
+    const state = await dev(worker, 'state')
+    expect(state.second).toBeFalsy()
+    expect(state.connectResult).toMatchObject({ ok: false, error: 'same_account' })
+    // that fresh sign-in stays: the one saved at the start may be one X has ended
+    const jar = Object.fromEntries((await context.cookies('https://x.com')).map(c => [c.name, c.value]))
+    expect(jar).toMatchObject({ auth_token: 'fresh-session', ct0: 'fresh-csrf' })
 })
 
 test('“I’ve signed in” asks first when X’s session cookie isn’t there, then finishes from X’s page all the same', async ({ context, worker, extensionId }) => {
@@ -344,6 +372,7 @@ test('“I’ve signed in” asks first when X’s session cookie isn’t there,
     // the user's word: X already shows the account
     await popup.getByRole('button', { name: 'Load it anyway' }).click()
     await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 15000 })
+    await signInEnded(worker)
     expect((await dev(worker, 'state')).second).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser })
 })
 

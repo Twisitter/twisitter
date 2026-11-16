@@ -84,8 +84,9 @@ export const KEYS = {
     notified: 'notified',
     lastTick: 'last_tick',
     repliesTabAt: 'replies_tab_at',
-    // a second account's sign-in in progress (connect.ts)
+    // a second account's sign-in in progress, and how the last one ended (connect.ts)
     connectPending: 'connect_pending',
+    connectResult: 'connect_result',
     // the x.com tab step 1 of the welcome page opened (setup.ts)
     setupTab: 'setup_tab',
 } as const

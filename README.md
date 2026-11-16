@@ -83,7 +83,12 @@ that against.
   then does the extension touch the login tab, loading `x.com/home` there,
   whose page says who signed in. It never reads the login pages' addresses:
   X changes them. If that cookie were ever renamed, "I've signed in" in the
-  popup still finishes the sign-in once the user confirms.
+  popup still finishes the sign-in once the user confirms. When a sign-in
+  ends, the login tab leaves X before any cookie changes, so no X page keeps
+  talking to X mid-change. Twisitter then checks that the user's own login
+  came back, and says so if it didn't. A sign-in as the user's own account by
+  mistake keeps that fresh sign-in rather than the one saved at the start,
+  which X may have ended.
 - **Only ordinary reads.** The second account opens posts and their replies
   (including "Show probable spam"), a post's hidden-replies page and replies
   opened directly: what anyone browsing X opens. No searches. Who is signed in

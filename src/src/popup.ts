@@ -17,7 +17,7 @@ type State = {
     secondStatus: { state: string; until?: number; detail?: string } | null
     userStatus: { state: string; until?: number; detail?: string } | null
     connecting: boolean
-    connectResult: { ok: boolean; error?: string; t: number } | null
+    connectResult: { ok: boolean; error?: string; warning?: string; t: number } | null
     lastTick: number
     reads: { user: number; second: number }
     tracked: Tracked[]
@@ -40,7 +40,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string,
 }
 
 const CONNECT_ERRORS: Record<string, string> = {
-    same_account: "That's the account this browser is signed in as. The second account has to be a different one.",
+    same_account: "That's your own account, so it can't be the second one. You're still signed in to it. Connect again with a different account.",
     not_signed_in: 'The sign-in ended before an account signed in. Your own login is back.',
     unconfirmed: "X didn't say who signed in, so nothing was saved. Your own login is back. Try again.",
     cancelled: 'Sign-in cancelled. Your own login is back.',
@@ -218,6 +218,8 @@ function accountSection(s: State) {
         you,
         second,
         result && !s.connecting && (result.ok ? el('div', { class: 'notice good small', text: 'Second account connected.' }) : el('div', { class: 'notice bad small', text: CONNECT_ERRORS[result.error || ''] || `Sign-in ended: ${result.error}` })),
+        // the user's own login didn't come back after the sign-in (connect.ts)
+        result && !s.connecting && result.warning === 'own_login_lost' && el('div', { class: 'notice bad small', text: 'Your own X login didn’t come back after that sign-in. Sign in to x.com again.' }),
     )
 }
 
@@ -428,7 +430,8 @@ ask('mark-seen')
 // a sign-in or a check finishing elsewhere shows up here
 const timer = setInterval(() => (document.hidden ? null : busy ? null : redraw()), 4000)
 window.addEventListener('unload', () => clearInterval(timer))
-// the account, step 1's tab and the second account show at once
+// the account, step 1's tab, the second account and a sign-in's end show at once
+const SHOWN_AT_ONCE: string[] = [KEYS.me, KEYS.setupTab, KEYS.second, KEYS.connectPending, KEYS.connectResult]
 api.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (KEYS.me in changes || KEYS.setupTab in changes || KEYS.second in changes)) redraw()
+    if (area === 'local' && SHOWN_AT_ONCE.some(k => k in changes)) redraw()
 })

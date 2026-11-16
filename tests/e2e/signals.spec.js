@@ -1,4 +1,4 @@
-import { dev, expect, fakeXPage, fixture, IDS, popupUrl, test } from './fixtures.js'
+import { dev, expect, fakeXPage, fixture, IDS, popupUrl, signInEnded, test } from './fixtures.js'
 
 // X's own signals on a check, end to end: the background's check, the popup
 // and the in-page note. The answers are the recorded ones, plus the two
@@ -191,6 +191,7 @@ test('the pages an account signs in on say whether X holds it back', async ({ co
     const tab = loginTab()
     await tab.goto('https://x.com/home')
     await tab.waitForURL(/\/src\/popup\.html#connected$/, { timeout: 10000 })
+    await signInEnded(worker)
     const { second_account: saved } = await worker.evaluate(() => chrome.storage.local.get('second_account'))
     expect(saved).toMatchObject({ screenName: 'viewer', userId: IDS.viewerUser, graduated: false })
 

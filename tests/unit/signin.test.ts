@@ -3,7 +3,8 @@
 // and a reload keyed to them started every sign-in over. The cookie only says
 // when to look; who signed in still comes from X's own page.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { connectSessionSet, connectSignedInNow, HOME_URL, isXSessionSet, LOAD_AFTER_SESSION_MS, LOGIN_URL } from '../../src/src/connect'
+import { cancelConnect, connectSessionSet, connectSignedInNow, finishConnect, HOME_URL, isXSessionSet, LOAD_AFTER_SESSION_MS, LOGIN_URL } from '../../src/src/connect'
+import type { StoredCookie } from '../../src/src/cookies'
 import { onSetupTabUrl, openX, SETUP_URL, setupSessionSet, setupSignedIn, signInOnX } from '../../src/src/setup'
 import { fakeBrowser } from './browser'
 
@@ -76,6 +77,72 @@ describe('the second account’s sign-in', () => {
         expect(browser.tabCalls).toHaveLength(2)
         delete browser.store.connect_pending
         expect(await connectSignedInNow()).toEqual({ ok: false, error: 'not_connecting' })
+    })
+})
+
+describe('putting the user’s own login back', () => {
+    const stored = (name: string, value: string): StoredCookie => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', hostOnly: false, expirationDate: 4e9 })
+    // the user's own cookies, saved as the sign-in began; the second account's in the browser now
+    const own = [stored('auth_token', 'own-session'), stored('ct0', 'own-csrf')]
+    const secondSignedIn = () => {
+        browser.store.connect_pending = { ...signingIn(), main: own }
+        browser.cookieJar.set('auth_token', 'second-session')
+        browser.cookieJar.set('ct0', 'second-csrf')
+    }
+    const viewer = { userId: '200000001', screenName: 'viewer' }
+    const jar = () => Object.fromEntries(browser.cookieJar)
+
+    it('signed in as the user’s own account by mistake: keeps that fresh sign-in, and connects nothing', async () => {
+        browser.store.connect_pending = { ...signingIn(), main: own }
+        browser.cookieJar.set('auth_token', 'fresh-own-session')
+        browser.cookieJar.set('ct0', 'fresh-own-csrf')
+        await finishConnect({ userId: '200000002', screenName: 'author' })
+        // the one saved at the start may be one X has since ended
+        expect(jar()).toEqual({ auth_token: 'fresh-own-session', ct0: 'fresh-own-csrf' })
+        expect(browser.store.connect_result).toMatchObject({ ok: false, error: 'same_account' })
+        expect(browser.store.connect_pending).toBeUndefined()
+        expect(browser.store.second_account).toBeUndefined()
+    })
+
+    it('moves the login tab off X before any cookie changes, at a finish and at a cancel', async () => {
+        for (const end of [() => finishConnect(viewer), () => cancelConnect('cancelled')]) {
+            browser.reset()
+            browser.openTabs.push({ id: LOGIN_TAB, url: 'https://x.com/home', active: true, windowId: 1 })
+            secondSignedIn()
+            await end()
+            const leaves = browser.tabCalls.findIndex(c => c.startsWith(`update ${LOGIN_TAB} chrome-extension://`))
+            const firstCookie = browser.tabCalls.findIndex(c => c.startsWith('cookie '))
+            expect(leaves).toBeGreaterThanOrEqual(0)
+            expect(firstCookie).toBeGreaterThan(leaves)
+            expect(jar()).toEqual({ auth_token: 'own-session', ct0: 'own-csrf' })
+        }
+    })
+
+    it('a page load due while a finish is putting cookies back waits for it, and then isn’t needed', async () => {
+        secondSignedIn()
+        // each cookie put back takes 1.5 s, so the finish runs past the load's 2 s
+        browser.slowCookies(1500)
+        await connectSessionSet()
+        const finishing = finishConnect(viewer)
+        await vi.advanceTimersByTimeAsync(10_000)
+        await finishing
+        expect(browser.tabCalls).not.toContain(`update ${LOGIN_TAB} ${HOME_URL}`)
+        expect(browser.store.connect_result).toMatchObject({ ok: true })
+    })
+
+    it('says so when the user’s own login doesn’t come back, and not otherwise', async () => {
+        secondSignedIn()
+        browser.refusedCookies.add('auth_token')
+        await finishConnect(viewer)
+        expect(browser.store.connect_result).toMatchObject({ ok: true, warning: 'own_login_lost' })
+        // the second account is connected all the same
+        expect(browser.store.second_account).toMatchObject({ screenName: 'viewer' })
+
+        browser.reset()
+        browser.openTabs.push({ id: LOGIN_TAB, url: 'https://x.com/home', active: true, windowId: 1 })
+        secondSignedIn()
+        await finishConnect(viewer)
+        expect(browser.store.connect_result).toEqual({ ok: true, t: expect.any(Number) })
     })
 })
 

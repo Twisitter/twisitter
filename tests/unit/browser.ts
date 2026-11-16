@@ -22,8 +22,11 @@ export function fakeBrowser() {
     // tabs whose content script answers a ping, and tabs that take no scripts
     const pinged = new Set<number>()
     const refusing = new Set<number>()
-    // x.com's cookies in the browser, by name
+    // x.com's cookies in the browser, by name; ones the browser won't take
+    // back; and how long putting one back takes
     const cookieJar = new Map<string, string>()
+    const refusedCookies = new Set<string>()
+    let cookieDelayMs = 0
     let nextTab = 100
     const tabById = (id: number) => {
         const t = openTabs.find(x => x.id === id)
@@ -79,6 +82,20 @@ export function fakeBrowser() {
         },
         cookies: {
             get: async ({ name }: { url: string; name: string }) => (cookieJar.has(name) ? { name, value: cookieJar.get(name), domain: '.x.com' } : null),
+            getAll: async () =>
+                [...cookieJar].map(([name, value]) => ({ name, value, domain: '.x.com', path: '/', secure: true, httpOnly: name === 'auth_token', hostOnly: false, session: false, expirationDate: 4e9 })),
+            remove: async ({ name }: { name: string }) => {
+                cookieJar.delete(name)
+                tabCalls.push(`cookie out ${name}`)
+                return { name }
+            },
+            set: async ({ name, value }: { name: string; value: string }) => {
+                if (cookieDelayMs) await new Promise(r => setTimeout(r, cookieDelayMs))
+                if (refusedCookies.has(name)) return null
+                cookieJar.set(name, value)
+                tabCalls.push(`cookie in ${name}=${value}`)
+                return { name, value }
+            },
         },
         scripting: {
             executeScript: async ({ target, files, world }: { target: { tabId: number }; files: string[]; world?: string }) =>
@@ -106,6 +123,10 @@ export function fakeBrowser() {
         pinged,
         refusing,
         cookieJar,
+        refusedCookies,
+        slowCookies(ms: number) {
+            cookieDelayMs = ms
+        },
         answer(table: Record<string, Route>) {
             routes = table
         },
@@ -119,6 +140,8 @@ export function fakeBrowser() {
             pinged.clear()
             refusing.clear()
             cookieJar.clear()
+            refusedCookies.clear()
+            cookieDelayMs = 0
             nextTab = 100
         },
     }

@@ -24,7 +24,7 @@ import { KEYS, getLocal, setLocal } from './store'
 export { getSecondAccount }
 
 export const CONNECT_KEY = KEYS.connectPending
-export const CONNECT_RESULT_KEY = 'connect_result'
+export const CONNECT_RESULT_KEY = KEYS.connectResult
 export const LOGIN_URL = 'https://x.com/i/flow/login'
 export const CONNECT_TIMEOUT_MS = 15 * 60 * 1000
 export const CONNECT_ALARM = 'connect-timeout'
@@ -54,6 +54,8 @@ export interface ConnectResult {
     ok: boolean
     // same_account, not_signed_in, unconfirmed, cancelled, timed_out, no_tab
     error?: string
+    // own_login_lost: the user's own X login didn't come back
+    warning?: string
     t: number
 }
 // The account an x.com page says is signed in
@@ -86,13 +88,36 @@ const inTurn = (run: () => Promise<void>): Promise<void> => {
     return next
 }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+// The login tab leaves X for Twisitter's page, and this returns once X's page
+// there is gone (3 s at most). Cookies change only after that: a page still
+// running keeps talking to X with whatever cookies are there mid-change.
 const leaveLoginTab = async (tabId: number | undefined) => {
     if (tabId == null) return
     try {
         await api.tabs.update(tabId, { url: api.runtime.getURL('src/popup.html#connected') })
     } catch {
-        // the tab is gone
+        return // the tab is gone
     }
+    for (let i = 0; i < 30; i++) {
+        const tab = await api.tabs.get(tabId).catch(() => null)
+        if (!tab || !/^https:\/\/x\.com\//.test(tab.url || '')) return
+        await sleep(100)
+    }
+}
+
+// The user's own login back in the browser, as saved when the sign-in began.
+// False when it hasn't come back, as far as the browser shows: the saved
+// cookies had X's session cookie and the browser still lacks it after a
+// second try. Without one saved (or should X rename it), there's nothing to
+// check.
+async function putUserLoginBack(main: StoredCookie[]): Promise<boolean> {
+    await clearXCookies()
+    await restoreCookies(main)
+    if (!main.some(c => c.name === SESSION_COOKIE) || (await hasXSession())) return true
+    await restoreCookies(main)
+    return hasXSession()
 }
 
 export async function startConnect(mainUserId: string): Promise<{ ok: boolean; error?: string }> {
@@ -126,11 +151,10 @@ export async function startConnect(mainUserId: string): Promise<{ ok: boolean; e
 const endConnect = async (why: string) => {
     const pending = await readPending()
     if (!pending) return
-    await clearXCookies()
-    await restoreCookies(pending.main)
-    await api.storage.local.remove(CONNECT_KEY)
-    await setResult({ ok: false, error: why })
     await leaveLoginTab(pending.tabId)
+    const back = await putUserLoginBack(pending.main)
+    await api.storage.local.remove(CONNECT_KEY)
+    await setResult({ ok: false, error: why, ...(!back && { warning: 'own_login_lost' }) })
 }
 export const cancelConnect = (why: string) => inTurn(() => endConnect(why))
 
@@ -140,8 +164,14 @@ export const finishConnect = (who: PageUser): Promise<void> =>
     inTurn(async () => {
         const pending = await readPending()
         if (!pending) return
+        await leaveLoginTab(pending.tabId)
         if (pending.mainUserId && who.userId === pending.mainUserId) {
-            await endConnect('same_account')
+            // The user signed in as themselves. That fresh sign-in is theirs and
+            // works, while the one saved at the start may not any more (X can
+            // end it when a browser it doesn't know signs in with a code), so
+            // the fresh one stays.
+            await api.storage.local.remove(CONNECT_KEY)
+            await setResult({ ok: false, error: 'same_account' })
             return
         }
         const account: SecondAccount = {
@@ -154,12 +184,10 @@ export const finishConnect = (who: PageUser): Promise<void> =>
         }
         await setLocal(KEYS.second, account)
         await api.storage.local.remove(KEYS.secondStatus)
-        await clearXCookies()
-        await restoreCookies(pending.main)
+        const back = await putUserLoginBack(pending.main)
         await api.storage.local.remove(CONNECT_KEY)
-        await setResult({ ok: true })
+        await setResult({ ok: true, ...(!back && { warning: 'own_login_lost' }) })
         await applySecondAccount()
-        await leaveLoginTab(pending.tabId)
     })
 
 // X's session cookie was set. During a sign-in, that's the second account
@@ -174,9 +202,12 @@ export async function connectSessionSet(): Promise<void> {
     loadFor = started
     setTimeout(() => {
         loadFor = 0
-        readPending()
-            .then(now => (now?.started === started && now.tabId === tabId ? api.tabs.update(tabId, { url: HOME_URL }) : undefined))
-            .catch(() => {})
+        // in turn: a finish under way (putting the user's cookies back) runs
+        // to its end first, and then there's no sign-in left to load for
+        inTurn(async () => {
+            const now = await readPending()
+            if (now?.started === started && now.tabId === tabId) await api.tabs.update(tabId, { url: HOME_URL })
+        }).catch(() => {})
     }, LOAD_AFTER_SESSION_MS)
 }
 
@@ -185,11 +216,19 @@ export async function connectSessionSet(): Promise<void> {
 // login page and lose their place there (a code X sent, say), so that takes
 // `anyway`: the user's word that X already shows the account.
 export async function connectSignedInNow(anyway = false): Promise<{ ok: boolean; error?: string }> {
-    const pending = await readPending()
-    if (!pending || pending.tabId == null) return { ok: false, error: 'not_connecting' }
-    if (!anyway && !(await hasXSession())) return { ok: false, error: 'no_session_yet' }
-    await api.tabs.update(pending.tabId, { url: HOME_URL }).catch(() => {})
-    return { ok: true }
+    let result: { ok: boolean; error?: string } = { ok: false, error: 'not_connecting' }
+    // in turn, like the load above: never in the middle of a finish
+    await inTurn(async () => {
+        const pending = await readPending()
+        if (!pending || pending.tabId == null) return
+        if (!anyway && !(await hasXSession())) {
+            result = { ok: false, error: 'no_session_yet' }
+            return
+        }
+        await api.tabs.update(pending.tabId, { url: HOME_URL }).catch(() => {})
+        result = { ok: true }
+    })
+    return result
 }
 
 // When the worker starts, on the timeout alarm and on each tick: a sign-in
