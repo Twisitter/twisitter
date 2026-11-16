@@ -269,8 +269,12 @@ export async function updateBadge() {
 async function notify(keys: string[]) {
     if (!keys.length) return
     const tracked = await getTracked()
+    const me = await getLocal<Me | null>(KEYS.me, null)
     // none, when every reply named was dropped in the meantime
-    const words = notification(keys.map(k => tracked[k.split(':')[0]]).filter(Boolean))
+    const words = notification(
+        keys.map(k => tracked[k.split(':')[0]]).filter(Boolean),
+        me?.userId,
+    )
     if (!words) return
     try {
         await api.notifications.create(`twisitter-${Date.now()}`, {

@@ -86,6 +86,16 @@ export const restoreCookies = async (cookies: StoredCookie[]) => {
     }
 }
 
+// a cookie's identity in the browser: the same name on another domain or path is another cookie
+const cookieKey = (c: StoredCookie) => `${c.name}|${c.domain}|${c.path || '/'}`
+
+// The saved cookies the browser doesn't have now, put back. The ones it has
+// stay as they are.
+export const restoreMissingCookies = async (saved: StoredCookie[]) => {
+    const have = new Set((await xCookies()).map(cookieKey))
+    await restoreCookies(saved.filter(c => !have.has(cookieKey(c))))
+}
+
 // The browser's own CSRF cookie, for requests as the signed-in user
 export const browserCsrf = async (): Promise<string> => {
     try {

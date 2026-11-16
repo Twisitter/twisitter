@@ -343,7 +343,8 @@ test('signing in as the user’s own account by mistake keeps that fresh sign-in
         route.fulfill({ status: 200, contentType: 'text/html', body: fakeXPage({ head: signedInAs(IDS.authorUser, 'author') }) }),
     )
     await context.route(/^https:\/\/x\.com\/i\/api\//, route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":{}}' }))
-    await context.addCookies([cookie('auth_token', 'main-session'), cookie('ct0', 'main-csrf')])
+    // the user's session, plus X's account switcher (its other signed-in accounts)
+    await context.addCookies([cookie('auth_token', 'main-session'), cookie('ct0', 'main-csrf'), cookie('auth_multi', 'other-accounts')])
     await dev(worker, 'set-local', { me: { userId: IDS.authorUser, screenName: 'author', at: Date.now() } })
     expect(await dev(worker, 'connect-start')).toEqual({ ok: true })
     const loginTab = () => context.pages().find(p => p.url() === 'https://x.com/i/flow/login')
@@ -356,9 +357,10 @@ test('signing in as the user’s own account by mistake keeps that fresh sign-in
     const state = await dev(worker, 'state')
     expect(state.second).toBeFalsy()
     expect(state.connectResult).toMatchObject({ ok: false, error: 'same_account' })
-    // that fresh sign-in stays: the one saved at the start may be one X has ended
+    // that fresh sign-in stays (the one saved at the start may be one X has
+    // ended), and the account switcher comes back
     const jar = Object.fromEntries((await context.cookies('https://x.com')).map(c => [c.name, c.value]))
-    expect(jar).toMatchObject({ auth_token: 'fresh-session', ct0: 'fresh-csrf' })
+    expect(jar).toMatchObject({ auth_token: 'fresh-session', ct0: 'fresh-csrf', auth_multi: 'other-accounts' })
 })
 
 test('“I’ve signed in” asks first when X’s session cookie isn’t there, then finishes from X’s page all the same', async ({ context, worker, extensionId }) => {

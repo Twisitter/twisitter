@@ -1,5 +1,5 @@
 // A stand-in for the extension APIs the background uses (storage, the header
-// rule, the badge, tabs and scripts), and for fetch, so a round can run here as it would in the
+// rule, the badge, notifications, tabs and scripts), and for fetch, so a round can run here as it would in the
 // worker. X's answers come from a table keyed like fakeRead's, with who asked:
 // "second TweetDetail:<focal>:<cursor>" for a marked read, "user ..." for one
 // with the browser's own cookies.
@@ -27,6 +27,8 @@ export function fakeBrowser() {
     const cookieJar = new Map<string, string>()
     const refusedCookies = new Set<string>()
     let cookieDelayMs = 0
+    // the notifications shown, in order
+    const notes: Array<{ title: string; message: string }> = []
     let nextTab = 100
     const tabById = (id: number) => {
         const t = openTabs.find(x => x.id === id)
@@ -50,7 +52,7 @@ export function fakeBrowser() {
             },
         },
         action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} },
-        notifications: { create: async () => {} },
+        notifications: { create: async (_id: string, o: { title: string; message: string }) => void notes.push({ title: o.title, message: o.message }) },
         declarativeNetRequest: {
             getSessionRules: async () => structuredClone(rules),
             updateSessionRules: async ({ removeRuleIds = [], addRules = [] }: { removeRuleIds?: number[]; addRules?: any[] }) => {
@@ -124,6 +126,7 @@ export function fakeBrowser() {
         refusing,
         cookieJar,
         refusedCookies,
+        notes,
         slowCookies(ms: number) {
             cookieDelayMs = ms
         },
@@ -142,6 +145,7 @@ export function fakeBrowser() {
             cookieJar.clear()
             refusedCookies.clear()
             cookieDelayMs = 0
+            notes.length = 0
             nextTab = 100
         },
     }

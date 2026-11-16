@@ -212,3 +212,23 @@ describe('a check that can’t finish', () => {
         expect(retryAt(0, 8, 40 * DAY)).toBe(Number.MAX_SAFE_INTEGER)
     })
 })
+
+// A reply the user didn't write has no view of its writer's to go on, so its
+// notification says nothing about what they see
+describe('the notification a round sends', () => {
+    it('calls the user’s own reply theirs', async () => {
+        browser.store.tracked = { [IDS.missingReply]: reply(IDS.missingReply, IDS.missingParent, IDS.authorUser, { text: 'Mine.' }) }
+        browser.answer({ ...missingAsSecond, [`user TweetDetail:${IDS.missingParent}:`]: ok(fixture('author_view_parent')) })
+        await settle(runTick({ only: IDS.missingReply }))
+        expect(browser.notes).toEqual([{ title: 'X is hiding one of your replies', message: 'Your reply "Mine." shows for you, but others don\'t see it under the post.' }])
+    })
+
+    it('calls a reply someone else wrote, added by its link, one the user watches', async () => {
+        browser.store.tracked = {
+            [IDS.missingReply]: reply(IDS.missingReply, IDS.missingParent, '300000003', { text: 'Theirs.', screenName: 'someone', source: 'link' }),
+        }
+        browser.answer(missingAsSecond)
+        await settle(runTick({ only: IDS.missingReply }))
+        expect(browser.notes).toEqual([{ title: 'X is hiding a reply you watch', message: 'Others don\'t see the reply "Theirs." by @someone under the post.' }])
+    })
+})

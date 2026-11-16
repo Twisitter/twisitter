@@ -94,9 +94,15 @@ export async function openX(asker?: Asker): Promise<{ ok: boolean; error?: strin
     return { ok: true }
 }
 
-// "Sign in on x.com": X's login page in step 1's tab, brought to the front
+// "Sign in on x.com": X's login page in step 1's tab, brought to the front.
+// Once the user is signing in there, it only brings that tab forward: loading
+// the login page again would lose their place in X's login (a code X sent).
 export async function signInOnX(asker?: Asker): Promise<{ ok: boolean; error?: string }> {
     const old = await getSetup()
+    if (old?.state === 'signing_in') {
+        const onX = await stepTab(old)
+        if (onX != null && (await api.tabs.update(onX, { active: true }).then(Boolean, () => false))) return { ok: true }
+    }
     const tabId = await openInStepTab(old, LOGIN_URL, true, asker)
     if (tabId == null) return { ok: false, error: 'no_x_tab' }
     await setLocal(KEYS.setupTab, { tabId, from: asker?.tabId ?? old?.from, state: 'signing_in', at: Date.now() })

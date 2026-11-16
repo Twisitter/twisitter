@@ -109,6 +109,9 @@ function signInStep(s: State): HTMLElement {
         el('button', { class: primary ? 'primary' : undefined, text, disabled: busy ? 'disabled' : undefined, onclick: () => act(action, () => ask(action)) })
     const say = (text: string, ...buttons: HTMLElement[]) => el('div', {}, el('div', { text }), el('div', { class: 'actions' }, ...buttons))
     const setup = s.setup
+    // signing in now: the button only brings X's tab forward, where the user is in X's login
+    if (setup?.state === 'signing_in')
+        return say(`Finish signing in on x.com, in the tab Twisitter opened${inTab ? '. Twisitter brings you back here after' : ''}.`, go('Go to the sign-in tab', 'sign-in-x'))
     if (setup && setup.state !== 'opening')
         return say(`You’re not signed in to X in this browser. Sign in on x.com${inTab ? ', and Twisitter brings you back here' : ''}.`, go('Sign in on x.com', 'sign-in-x'))
     if (setup && Date.now() - setup.at < OPENING_MS)

@@ -57,11 +57,37 @@ export function explain(state: ReplyState, viewer: string, section?: string, aut
 // The notification for replies a round just found hidden, null for none. A
 // reply's writer still sees it where they left it, except when the post's
 // author hid it: then it's gone from the thread for them too.
-export function notification(items: Array<{ text?: string; last?: { state: ReplyState; section?: string } }>): { title: string; message: string } | null {
+// A reply the user didn't write (added by its link, or the second account's)
+// is worded as watched, not theirs: nobody read its writer's view, so nothing
+// is said about what they see. `me` is the user's id, when known.
+export function notification(
+    items: Array<{ text?: string; authorId?: string; screenName?: string; last?: { state: ReplyState; section?: string } }>,
+    me?: string,
+): { title: string; message: string } | null {
     if (!items.length) return null
-    if (items.length > 1) return { title: `X is hiding ${items.length} of your replies`, message: 'X hides them from others without telling you. Open Twisitter to see them.' }
+    const mine = (t: { authorId?: string }) => !!me && t.authorId === me
+    if (items.length > 1)
+        return items.every(mine)
+            ? { title: `X is hiding ${items.length} of your replies`, message: 'X hides them from others without telling you. Open Twisitter to see them.' }
+            : { title: `X is hiding ${items.length} replies you watch`, message: 'X hides them from others. Open Twisitter to see them.' }
     const { text, last } = items[0]
     const reply = `"${(text || '').slice(0, 80)}"`
+    if (!mine(items[0])) {
+        const watched = `the reply ${reply}${items[0].screenName ? ` by @${items[0].screenName}` : ''}`
+        const title = 'X is hiding a reply you watch'
+        switch (last?.state) {
+            case 'probable_spam':
+                return { title, message: `X puts ${watched} under "${last.section || 'Probable spam'}".` }
+            case 'missing':
+                return { title, message: `Others don't see ${watched} under the post.` }
+            case 'unavailable':
+                return { title, message: `Others get "This Post is unavailable" instead of ${watched}.` }
+            case 'hidden_by_author':
+                return { title, message: `The post's author hid ${watched}. Others find it only on the post's hidden-replies page.` }
+            default:
+                return { title, message: `X hides ${watched} from others.` }
+        }
+    }
     const title = 'X is hiding one of your replies'
     switch (last?.state) {
         case 'probable_spam':

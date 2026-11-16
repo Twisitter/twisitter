@@ -92,13 +92,14 @@ describe('putting the user’s own login back', () => {
     const viewer = { userId: '200000001', screenName: 'viewer' }
     const jar = () => Object.fromEntries(browser.cookieJar)
 
-    it('signed in as the user’s own account by mistake: keeps that fresh sign-in, and connects nothing', async () => {
-        browser.store.connect_pending = { ...signingIn(), main: own }
+    it('signed in as the user’s own account by mistake: keeps that fresh sign-in, puts back the saved cookies it lacks, and connects nothing', async () => {
+        // saved at the start: the session, plus X's account switcher and a preference
+        browser.store.connect_pending = { ...signingIn(), main: [...own, stored('auth_multi', 'other-accounts'), stored('d_prefs', 'prefs')] }
         browser.cookieJar.set('auth_token', 'fresh-own-session')
         browser.cookieJar.set('ct0', 'fresh-own-csrf')
         await finishConnect({ userId: '200000002', screenName: 'author' })
-        // the one saved at the start may be one X has since ended
-        expect(jar()).toEqual({ auth_token: 'fresh-own-session', ct0: 'fresh-own-csrf' })
+        // the fresh session wins (the saved one may be one X has since ended), and the rest comes back
+        expect(jar()).toEqual({ auth_token: 'fresh-own-session', ct0: 'fresh-own-csrf', auth_multi: 'other-accounts', d_prefs: 'prefs' })
         expect(browser.store.connect_result).toMatchObject({ ok: false, error: 'same_account' })
         expect(browser.store.connect_pending).toBeUndefined()
         expect(browser.store.second_account).toBeUndefined()
@@ -157,6 +158,19 @@ describe('step 1’s sign-in', () => {
         await signInOnX(welcome)
         expect(lastCall()).toBe(`update 100 ${LOGIN_URL} front`)
     }
+
+    it('once the user is signing in, “Sign in on x.com” only brings that tab forward, wherever X’s login is', async () => {
+        await signInFromStep1()
+        // X has moved its login on, and sent a code
+        browser.openTabs.find(t => t.id === 100)!.url = 'https://x.com/i/jf/onboarding/web?mode=login'
+        const before = browser.tabCalls.length
+        expect(await signInOnX(welcome)).toEqual({ ok: true })
+        expect(browser.tabCalls.slice(before)).toEqual(['update 100 front'])
+        // that tab gone: X's login page opens anew
+        browser.openTabs.splice(browser.openTabs.findIndex(t => t.id === 100), 1)
+        await signInOnX(welcome)
+        expect(lastCall()).toBe(`create 101 ${LOGIN_URL}`)
+    })
 
     it('never reloads or loads anything on an address, /home included', async () => {
         await signInFromStep1()

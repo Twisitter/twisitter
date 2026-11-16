@@ -17,7 +17,7 @@
 // 2026-11-15, and a reload keyed to them broke every sign-in).
 
 import api from './api'
-import { clearXCookies, restoreCookies, xCookies, type StoredCookie } from './cookies'
+import { clearXCookies, restoreCookies, restoreMissingCookies, xCookies, type StoredCookie } from './cookies'
 import { getSecondAccount, newToken, pendingSignIn, setAccountForHeaders, syncSecondAccountRule, type SecondAccount } from './requests'
 import { KEYS, getLocal, setLocal } from './store'
 
@@ -169,7 +169,9 @@ export const finishConnect = (who: PageUser): Promise<void> =>
             // The user signed in as themselves. That fresh sign-in is theirs and
             // works, while the one saved at the start may not any more (X can
             // end it when a browser it doesn't know signs in with a code), so
-            // the fresh one stays.
+            // the fresh one stays. The saved cookies it didn't set come back:
+            // X's other signed-in accounts (its account switcher), preferences.
+            await restoreMissingCookies(pending.main)
             await api.storage.local.remove(CONNECT_KEY)
             await setResult({ ok: false, error: 'same_account' })
             return

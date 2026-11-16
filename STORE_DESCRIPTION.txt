@@ -1,6 +1,6 @@
 Twisitter tells you when X shows you your replies as normal but hides them from everyone else.
 
-X can file a reply under "Show probable spam", leave it out of the reply list altogether, or let the post's author hide it, and the reply's writer is never told. You still see your reply where you left it. Twisitter checks how your replies look to others, through a second X account of your own, and tells you when the two views differ, and why.
+X can file a reply under "Show probable spam", leave it out of the reply list altogether, or let the post's author hide it, and the reply's writer is never told. In the first two cases you still see your reply where you left it, and in all three your own Replies tab shows it as normal. Twisitter checks how your replies look to others, through a second X account of your own, and tells you when the two views differ, and why.
 
 - Notices the replies you post on x.com, and the ones on your Replies tab from X's phone apps.
 - Checks each reply a few times over its first month, slowly, with a handful of reads.

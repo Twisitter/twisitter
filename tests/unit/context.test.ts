@@ -157,7 +157,11 @@ describe('the signed-in accounts’ access flags', () => {
 // The notification a round sends: a reply's writer still sees it where they
 // left it, except when the post's author hid it
 describe('the notification', () => {
-    const one = (state: ReplyState, section?: string) => notification([{ text: 'Speaking from day one.', last: { state, section } }])
+    // the user's own reply: its writer's view was read
+    const ME = IDS.authorUser
+    const one = (state: ReplyState, section?: string) => notification([{ text: 'Speaking from day one.', authorId: ME, last: { state, section } }], ME)
+    // a reply someone else wrote, added by its link: nobody read its writer's view
+    const theirs = (state: ReplyState) => notification([{ text: 'Not mine.', authorId: '300000003', screenName: 'someone', last: { state } }], ME)
 
     it('says in one sentence what others see, for each hidden state', () => {
         // the probable-spam one is the message the intro video shows
@@ -175,15 +179,40 @@ describe('the notification', () => {
 
     it('never says a reply the post’s author hid shows for its writer: it’s gone from the thread for them too', () => {
         expect(one('hidden_by_author')!.message).toBe('Your reply "Speaking from day one." was hidden by the post\'s author. Others find it only on the post\'s hidden-replies page.')
-        const many = notification([
-            { text: 'a', last: { state: 'probable_spam' } },
-            { text: 'b', last: { state: 'hidden_by_author' } },
-        ])
+        const many = notification(
+            [
+                { text: 'a', authorId: ME, last: { state: 'probable_spam' } },
+                { text: 'b', authorId: ME, last: { state: 'hidden_by_author' } },
+            ],
+            ME,
+        )
         expect(many).toEqual({ title: 'X is hiding 2 of your replies', message: 'X hides them from others without telling you. Open Twisitter to see them.' })
     })
 
+    it('words a reply someone else wrote as one the user watches, and says nothing about what its writer sees', () => {
+        expect(theirs('missing')).toEqual({ title: 'X is hiding a reply you watch', message: "Others don't see the reply \"Not mine.\" by @someone under the post." })
+        expect(theirs('probable_spam')!.message).toBe('X puts the reply "Not mine." by @someone under "Probable spam".')
+        for (const state of HIDDEN_STATES) {
+            const words = theirs(state)!
+            expect(words.title).toBe('X is hiding a reply you watch')
+            expect(words.message).not.toMatch(/your reply|shows for you|without telling you/i)
+            expect(words.message).toMatch(/\.$/)
+        }
+        // with the user's account unknown, no reply is called theirs
+        expect(notification([{ text: 'x', authorId: ME, last: { state: 'missing' } }])!.title).toBe('X is hiding a reply you watch')
+        // a mix: neither "your replies" nor "without telling you"
+        const mixed = notification(
+            [
+                { text: 'a', authorId: ME, last: { state: 'missing' } },
+                { text: 'b', authorId: '300000003', last: { state: 'missing' } },
+            ],
+            ME,
+        )
+        expect(mixed).toEqual({ title: 'X is hiding 2 replies you watch', message: 'X hides them from others. Open Twisitter to see them.' })
+    })
+
     it('quotes up to 80 characters of the reply, and sends nothing for no replies', () => {
-        expect(notification([{ text: 'x'.repeat(100), last: { state: 'missing' } }])!.message).toContain(`"${'x'.repeat(80)}" shows`)
-        expect(notification([])).toBeNull()
+        expect(notification([{ text: 'x'.repeat(100), authorId: ME, last: { state: 'missing' } }], ME)!.message).toContain(`"${'x'.repeat(80)}" shows`)
+        expect(notification([], ME)).toBeNull()
     })
 })
