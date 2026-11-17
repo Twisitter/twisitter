@@ -9,7 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const manifestVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'src', 'manifest.json'), 'utf8')).version
 
 // The VERSION HISTORY section of STORE_DESCRIPTION.txt is the changelog: a
-// version on its own line, then its note on the next.
+// release's date and version on one line ("2026/11/16 - 0.0.1", or the version
+// alone), then its note on the next.
 function parseChangelog() {
     const file = path.join(__dirname, 'STORE_DESCRIPTION.txt')
     if (!fs.existsSync(file)) return []
@@ -18,8 +19,8 @@ function parseChangelog() {
     if (start === -1) return []
     const out = []
     for (let i = start + 1; i < lines.length; i++) {
-        const v = lines[i].trim()
-        if (/^\d+\.\d+/.test(v)) out.push({ version: v, notes: (lines[i + 1] || '').trim() })
+        const m = lines[i].trim().match(/^(?:\d{4}\/\d{2}\/\d{2} - )?(\d+(?:\.\d+)+)$/)
+        if (m) out.push({ version: m[1], notes: (lines[i + 1] || '').trim() })
     }
     return out
 }
@@ -27,7 +28,7 @@ const changelog = parseChangelog()
 if (!changelog.some(e => e.version === manifestVersion && e.notes)) {
     throw new Error(
         `STORE_DESCRIPTION.txt has no changelog entry for manifest version ${manifestVersion}. ` +
-            'Add one at the top of VERSION HISTORY (the version on its own line, then its note) before building.',
+            'Add one at the top of VERSION HISTORY (its date and version, as "2026/11/16 - 0.0.1", then its note) before building.',
     )
 }
 

@@ -9,5 +9,5 @@ X can file a reply under "Show probable spam", leave it out of the reply list al
 - Everything stays in your browser: your own sessions, X's own pages, no servers of ours.
 
 VERSION HISTORY:
-0.0.1
+2026/11/16 - 0.0.1
 First prototype: catches X hiding your replies, and checks other accounts' replies on request.
