@@ -11,6 +11,7 @@ export default defineConfig({
     },
     test: {
         environment: 'node',
-        include: ['tests/unit/**/*.test.ts'],
+        // the publish scripts' tests run them in scratch repos (scripts/publishing/__tests__)
+        include: ['tests/unit/**/*.test.ts', 'scripts/**/*.test.mjs'],
     },
 })

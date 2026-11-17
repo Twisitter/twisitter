@@ -203,3 +203,40 @@ yarn source-zip      # source.zip: the committed tree, for Firefox's reviewers
 
 The production build is minified, with no source maps. Build from a clean
 checkout of the commit `source.zip` comes from, so the two match.
+
+## Publishing
+
+A store's first version goes in by hand, in its dashboard, because that's where
+the listing is made: the description, screenshots (`graphics/`), privacy
+answers (`STORE_PRIVACY.txt`), the privacy policy URL, and for Firefox the
+source. After that, these upload new versions:
+
+```bash
+yarn publish:all        # Chrome, then Firefox
+yarn publish:chrome     # one store
+yarn publish:firefox
+yarn publish:firefox:text   # Firefox's description only, no new version
+yarn refresh:chrome     # mint a new Chrome refresh token into .env
+```
+
+Copy `.env.example` to `.env` and fill it in: the Chrome Web Store item id and
+an OAuth client with a refresh token, and Firefox Add-ons API keys. `.env` is
+gitignored.
+
+Each publish:
+
+- stops before anything runs when VERSION HISTORY has no entry for the
+  manifest's version, the extension's files have uncommitted changes, or Node
+  isn't the version `.nvmrc` names (Mozilla's reviewers rebuild with it);
+- runs `yarn preflight`, then `yarn install --immutable` and a fresh production
+  build for each store, and stops if a file changes while it builds;
+- for Chrome, uploads `chrome.zip`, then waits while you paste the description
+  into the dashboard and fill the Privacy tab for any new permission (the API
+  can set neither), then submits;
+- for Firefox, submits `dist-firefox` with `source.zip` (a `git archive` of
+  the commit built) through `web-ext`, then sets the description;
+- records each store that took the version in `.publish-status.json`
+  (gitignored), so a rerun after a failure publishes only to the stores still
+  missing it, and refuses other code under a version a store already has.
+
+Edge isn't scripted: upload `chrome.zip` in its dashboard.

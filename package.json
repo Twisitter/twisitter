@@ -20,7 +20,12 @@
     "test:e2e": "playwright test",
     "icons": "node scripts/make-icons.mjs",
     "source-zip": "rm -f source.zip && git archive --format=zip -o source.zip HEAD",
-    "preflight": "yarn typecheck && yarn test && yarn build-chrome-e2e && yarn test:e2e"
+    "preflight": "yarn typecheck && yarn test && yarn build-chrome-e2e && yarn test:e2e",
+    "publish:chrome": "yarn preflight && node scripts/publishing/publish-chrome.mjs",
+    "publish:firefox": "yarn preflight && node scripts/publishing/publish-firefox.mjs",
+    "publish:firefox:text": "node scripts/publishing/publish-firefox.mjs --text-only",
+    "publish:all": "node scripts/publishing/publish-all.mjs",
+    "refresh:chrome": "node scripts/publishing/refresh-chrome-token.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0",
@@ -30,6 +35,7 @@
     "ts-loader": "9.5.7",
     "typescript": "5.9.3",
     "vitest": "4.1.6",
+    "web-ext": "10.1.0",
     "webpack": "5.106.2",
     "webpack-cli": "5.1.4"
   }
