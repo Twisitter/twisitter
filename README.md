@@ -87,8 +87,9 @@ diagnostic log filled in (`src/src/report.ts`). They travel in the link's
 `#fragment`, which the browser never sends anywhere, so nothing leaves the
 machine until the person sends the form. The extension itself makes no request
 for it. On Firefox the details are Mozilla's "technical and interaction data",
-declared optional in the manifest: the click asks Firefox for it first
-(`permissions.request`), and a no opens the form without them.
+declared optional in the manifest: on Firefox 140 and later the click asks
+Firefox for it first (`permissions.request`), and a no opens the form without
+them. Firefox 115 to 139 have no such setting, so the details go.
 
 - The log (`src/src/diaglog.ts`) is a line per round that found something,
   changed or stopped early, per sign-in, account check and change in an
