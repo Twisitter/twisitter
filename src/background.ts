@@ -21,7 +21,9 @@ import {
     recoverConnect,
     startConnect,
 } from './src/connect'
+import { errorText, logEvent } from './src/diaglog'
 import { accountTrouble, ensureAlarms, forget, notePageUser, recentReplies, runTick, SOON_ALARM, TICK_ALARM, tickSoon, toNewReply, trackByLink, updateBadge } from './src/monitor'
+import { openReport } from './src/report'
 import { BEARER_KEY, installFirefoxHeaderListener, OPS_KEY, readsInWindow } from './src/requests'
 import { addToOpenXTabs, onSetupTabUrl, openX, setupSessionSet, setupSignedIn, setupState, setupTabClosed, signInOnX, type Asker } from './src/setup'
 import { getLocal, getTracked, KEYS, setLocal, trackReplies, type Me } from './src/store'
@@ -242,6 +244,10 @@ api.runtime.onMessage.addListener((msg: any, sender, sendResponse) => {
             return reply(forget(msg.id).then(updateBadge).then(() => ({ ok: true })))
         case 'mark-seen':
             return reply(updateBadge().then(() => ({ ok: true })))
+        case 'open-report':
+            // twisitter.com's report form, with the details in the link's
+            // #fragment unless the popup says the browser's setting keeps them
+            return reply(openReport(msg.details !== false))
         case 'dev':
             if (__DEV__) return reply(devAction(msg.cmd, msg.args))
             return
@@ -301,7 +307,7 @@ api.alarms.onAlarm.addListener(alarm => {
         recoverConnect()
             .catch(() => {})
             .then(() => afterChecks(runTick()))
-            .catch(() => {})
+            .catch(e => logEvent(`round failed: ${errorText(e)}`).catch(() => {}))
         // old account-check data, at most hourly
         pruneAccountChecks().catch(() => {})
     } else if (alarm.name === CONNECT_ALARM) {
@@ -347,9 +353,18 @@ api.tabs.onRemoved.addListener(tabId => {
 // every tab is new, so what tabs scrolled of other accounts goes
 api.runtime.onStartup.addListener(() => {
     forgetAllTabs().catch(() => {})
+    logEvent('browser started').catch(() => {})
 })
 
 api.runtime.onInstalled.addListener(details => {
+    const version = api.runtime.getManifest().version
+    logEvent(
+        details.reason === 'install'
+            ? `installed ${version}`
+            : details.reason === 'update'
+              ? `updated ${details.previousVersion || '?'} → ${version}`
+              : `${details.reason.replace(/_/g, ' ')}, ${version}`,
+    ).catch(() => {})
     if (details.reason !== 'install') return
     // x.com tabs already open learn the account now, without a reload
     addToOpenXTabs().catch(() => {})

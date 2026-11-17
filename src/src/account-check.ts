@@ -25,6 +25,7 @@ import { getSecondAccount, isConnecting } from './connect'
 import { accountTrouble, readAsSecondNoted, readAsUserNoted } from './monitor'
 import { readsInWindow, type SecondAccount } from './requests'
 import { DAY, getLocal, HOUR, KEYS, oneAtATime, setLocal, type Me } from './store'
+import { errorText, logEvent } from './diaglog'
 import { createdAtMs } from './timeline'
 import { isTweetId } from './x-api'
 
@@ -253,7 +254,7 @@ export function readerFor(seen: Pick<SeenTab, 'userId' | 'relation' | 'viewerId'
     return { reader: 'user', viewer: you, ...(r.following ? { follows: true } : {}) }
 }
 
-const getResults = async (): Promise<Record<string, OtherResult>> => {
+export const getResults = async (): Promise<Record<string, OtherResult>> => {
     const all = await getLocal<Record<string, OtherResult>>(KEYS.otherResults, {})
     return all && typeof all === 'object' ? all : {}
 }
@@ -321,11 +322,19 @@ export async function otherNotes(now = Date.now(), watched: ReadonlySet<string> 
 // none here was cut off: a service worker stops, and its work with it.
 let current: Promise<void> | null = null
 
-async function finish(run: AccountRun, state: AccountRun['state'], stop?: RunStop) {
+async function finish(run: AccountRun, state: AccountRun['state'], stop?: RunStop, tally: Record<string, number> = {}) {
     run.state = state
     if (stop) run.stop = stop
     run.updatedAt = Date.now()
     await setLocal(KEYS.accountRun, run)
+    // the diagnostic log names no account: who read, and how it went
+    const states = Object.entries(tally)
+        .map(([k, n]) => `${k} ${n}`)
+        .join(', ')
+    await logEvent(
+        `account check as ${run.reader === 'user' ? 'you' : 'the second account'}${run.follows ? ', a follower' : ''} · ` +
+            `${run.done} of ${run.total} checked${states ? ` (${states})` : ''} · ${state}${stop ? `: ${stop}` : ''}`,
+    ).catch(() => {})
 }
 
 // Why the next reply shouldn't be read now, if there's a reason
@@ -344,6 +353,9 @@ async function runChecks(run: AccountRun, targets: SeenReply[], read: Read, meId
     // the second account can read in the user's place, unless it's the writer
     const secondUsable = !!second && second.userId !== run.userId
     let failures = 0
+    // the states it came to, for the diagnostic log
+    const tally: Record<string, number> = {}
+    const count = (state: string) => (tally[state] = (tally[state] || 0) + 1)
     for (const target of targets) {
         const prior = (await getResults())[target.id]
         // the same account looked within the hour, and could say
@@ -351,9 +363,10 @@ async function runChecks(run: AccountRun, targets: SeenReply[], read: Read, meId
         if (reuse) {
             if (HIDDEN_STATES.has(prior.state)) run.findings++
             run.done++
+            count(prior.state)
         } else {
             const stop = await whyStop(run, meId, second?.token)
-            if (stop) return finish(run, 'stopped', stop)
+            if (stop) return finish(run, 'stopped', stop, tally)
             run.updatedAt = Date.now()
             await setLocal(KEYS.accountRun, run)
             const outcome = await checkReply({ id: target.id, parentId: target.parentId }, read)
@@ -387,21 +400,22 @@ async function runChecks(run: AccountRun, targets: SeenReply[], read: Read, meId
                 onResult()
             }
             run.done++
+            count(muted ? 'unknown' : outcome.state)
             // the reads noted whose session it was (accountTrouble)
-            if (outcome.stop === 'rate_limited' || outcome.stop === 'signed_out' || outcome.stop === 'stale_client') return finish(run, 'stopped', outcome.stop)
+            if (outcome.stop === 'rate_limited' || outcome.stop === 'signed_out' || outcome.stop === 'stale_client') return finish(run, 'stopped', outcome.stop, tally)
             failures = outcome.stop ? failures + 1 : 0
-            if (failures >= FAILURES_TO_STOP) return finish(run, 'stopped', 'failing')
-            if (muted) return finish(run, 'stopped', 'reader_mutes')
+            if (failures >= FAILURES_TO_STOP) return finish(run, 'stopped', 'failing', tally)
+            if (muted) return finish(run, 'stopped', 'reader_mutes', tally)
             // the user turns out to follow the writer: the second account reads next time
             if (run.reader === 'user' && rel?.following && !run.follows) {
-                if (secondUsable) return finish(run, 'stopped', 'reader_follows')
+                if (secondUsable) return finish(run, 'stopped', 'reader_follows', tally)
                 run.follows = true
             }
         }
         run.updatedAt = Date.now()
         await setLocal(KEYS.accountRun, run)
     }
-    return finish(run, 'done')
+    return finish(run, 'done', undefined, tally)
 }
 
 export type StartError = Refusal | 'no_tab' | 'already_checking' | 'connecting' | 'no_replies_tab' | 'no_replies' | 'user_trouble' | 'second_trouble'
@@ -444,7 +458,10 @@ export async function startAccountCheck(tabId: number, onResult: () => void = ()
         await setLocal(KEYS.accountRun, run)
         await runChecks(run, targets, read, me.userId, second, onResult)
     })()
-        .catch(() => finish(run, 'stopped', 'cut_off').catch(() => {}))
+        .catch(async e => {
+            await logEvent(`account check failed: ${errorText(e)}`).catch(() => {})
+            await finish(run, 'stopped', 'cut_off').catch(() => {})
+        })
         .finally(() => {
             current = null
             onResult()
@@ -462,6 +479,7 @@ export async function accountState(tabId: number, now = Date.now()) {
     if (run?.state === 'running' && !current) {
         run = { ...run, state: 'stopped', stop: 'cut_off' }
         await setLocal(KEYS.accountRun, run)
+        await logEvent(`account check cut off after ${run.done} of ${run.total}: the background stopped`).catch(() => {})
     }
     const results = seen
         ? Object.values(await getResults())

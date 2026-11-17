@@ -10,10 +10,12 @@ import api from './api'
 import { checkReply, isFinding, type CheckOutcome, type Read } from './check'
 import { getSecondAccount, isConnecting } from './connect'
 import { notification } from './describe'
+import { logEvent, noteRead, noteRound, stamp } from './diaglog'
 import { readAsSecond, readAsUser, readsInWindow, READS_PER_WINDOW, type SecondAccount } from './requests'
 import {
     getLocal,
     getTracked,
+    HOUR,
     KEYS,
     MINUTE,
     nextCheckAt,
@@ -54,30 +56,44 @@ export interface AccountStatus {
 }
 type Who = 'user' | 'second'
 const STATUS_KEY: Record<Who, string> = { user: KEYS.userStatus, second: KEYS.secondStatus }
+// how the diagnostic log names each account: never by its name
+const WHOSE: Record<Who, string> = { user: 'your account', second: 'second account' }
 
-async function noteAnswer(who: Who, answer: XAnswer): Promise<XAnswer> {
-    const kind = classifyAnswer(answer)
+async function noteAnswer(who: Who, name: string, answer: XAnswer): Promise<XAnswer> {
+    // a read held back during a sign-in never reached X (requests.ts notSent)
+    const kind = /^not sent/.test(answer.failure || '') ? 'not_sent' : classifyAnswer(answer)
+    await noteRead(who, name, kind, answer.status).catch(() => {})
+    if (kind === 'not_sent') return answer
     const key = STATUS_KEY[who]
     const now = Date.now()
+    const before = await getLocal<AccountStatus | null>(key, null)
     // while x.com is on the second account, a refusal is about that session,
     // not the user's: the status that says so stays
-    const otherAccount = (await getLocal<AccountStatus | null>(key, null))?.state === 'other_account'
+    const otherAccount = before?.state === 'other_account'
     if (kind === 'signed_out') {
-        if (!otherAccount) await setLocal(key, { state: 'signed_out', at: now, detail: describeAnswer(answer) })
+        if (!otherAccount) {
+            await setLocal(key, { state: 'signed_out', at: now, detail: describeAnswer(answer) })
+            if (before?.state !== 'signed_out') await logEvent(`${WHOSE[who]}: X says it's signed out (${describeAnswer(answer)})`).catch(() => {})
+        }
     }
     else if (kind === 'rate_limited') {
         // X says when the window resets; a quarter hour if it doesn't
         const reset = (answer.rateReset || 0) * 1000
-        await setLocal(key, { state: 'rate_limited', at: now, until: reset > now && reset < now + 30 * MINUTE ? reset : now + 15 * MINUTE })
+        const until = reset > now && reset < now + 30 * MINUTE ? reset : now + 15 * MINUTE
+        await setLocal(key, { state: 'rate_limited', at: now, until })
+        if (before?.state !== 'rate_limited') await logEvent(`${WHOSE[who]}: X asked for a pause, until ${stamp(until).slice(6)}`).catch(() => {})
     } else if (kind === 'ok' && !otherAccount) {
         // a good answer ends X's trouble with a session, but not the browser
         // being signed in to the second account: that read carried its
         // session, and only a page signed in as the user ends it (notePageUser)
-        if (await getLocal(key, null)) await api.storage.local.remove(key)
+        if (before) {
+            await api.storage.local.remove(key)
+            await logEvent(`${WHOSE[who]}: X answers normally again, after ${before.state}`).catch(() => {})
+        }
     }
     return answer
 }
-export const readAsUserNoted: Read = async (name, variables) => noteAnswer('user', await readAsUser(name, variables))
+export const readAsUserNoted: Read = async (name, variables) => noteAnswer('user', name, await readAsUser(name, variables))
 export const readAsSecondNoted =
     (second: SecondAccount): Read =>
     async (name, variables) => {
@@ -85,7 +101,7 @@ export const readAsSecondNoted =
         // an answer for an account disconnected or replaced during the read
         // says nothing about the account connected now
         if ((await getSecondAccount())?.token !== second.token) return { status: 0, failure: 'not kept: the second account changed' }
-        return noteAnswer('second', answer)
+        return noteAnswer('second', name, answer)
     }
 
 // An x.com page said who it's signed in as, outside a sign-in. That's the
@@ -94,14 +110,26 @@ export const readAsSecondNoted =
 // session) until a page signed in as the user loads again.
 export async function notePageUser(who: { userId: string; screenName: string; graduated?: boolean }) {
     const second = await getSecondAccount()
+    const before = await getLocal<AccountStatus | null>(KEYS.userStatus, null)
     if (second && who.userId === second.userId) {
         await setLocal(KEYS.userStatus, { state: 'other_account', at: Date.now(), detail: `@${who.screenName}` })
+        if (before?.state !== 'other_account') await logEvent('x.com here is signed in to the second account, so reads as you wait').catch(() => {})
         return
     }
     const me = await getLocal<Me | null>(KEYS.me, null)
-    if (!me || me.userId !== who.userId || me.screenName !== who.screenName || me.graduated !== who.graduated) await setLocal(KEYS.me, { ...who, at: Date.now() })
+    // `at` says when a page last showed the account, to within an hour: a
+    // write at most hourly, not one per page load
+    const seenLongAgo = !!me && Date.now() - (me.at || 0) > HOUR
+    if (!me || me.userId !== who.userId || me.screenName !== who.screenName || me.graduated !== who.graduated || seenLongAgo) {
+        await setLocal(KEYS.me, { ...who, at: Date.now() })
+        const access = who.graduated === false ? ', which X holds back (no graduated access)' : ''
+        if (!me || me.userId !== who.userId) await logEvent(`x.com here is signed in to ${me ? 'a different account than before' : 'an account'}${access}`).catch(() => {})
+        // a page that leaves the flag out says nothing either way
+        else if (me.graduated !== undefined && who.graduated !== undefined && me.graduated !== who.graduated) await logEvent(`your account: X ${who.graduated ? 'no longer holds it back' : 'holds it back (no graduated access)'}`).catch(() => {})
+    }
     // a page signed in is a session X takes
     await api.storage.local.remove(KEYS.userStatus)
+    if (before) await logEvent(`your account: an x.com page is signed in as you, after ${before.state}`).catch(() => {})
 }
 
 // The account's trouble, if any; a pause that has run out is over
@@ -191,7 +219,8 @@ async function checkOne(reply: Tracked, me: Me | null, second: SecondAccount, us
 
 export interface TickReport {
     skipped?: string
-    checked: Array<{ id: string; state: string; reads: number; stop?: string }>
+    // `was`: the state the reply's check before this one came to
+    checked: Array<{ id: string; state: string; was?: string; reads: number; stop?: string }>
     findings: number
 }
 
@@ -235,7 +264,13 @@ export function runTick(opts: { force?: boolean; only?: string } = {}): Promise<
             }
             const outcome = await checkOne(reply, me, second, userOk)
             if (!outcome) continue
-            report.checked.push({ id: reply.id, state: outcome.state, reads: outcome.reads, ...(outcome.stop && { stop: outcome.stop }) })
+            report.checked.push({
+                id: reply.id,
+                state: outcome.state,
+                ...(reply.last && { was: reply.last.state }),
+                reads: outcome.reads,
+                ...(outcome.stop && { stop: outcome.stop }),
+            })
             // once per reply: X can file a new reply away before it labels it
             if (isFinding(outcome)) findings.push(`${reply.id}:hidden`)
             // the reads noted whose session it was (accountTrouble)
@@ -246,7 +281,13 @@ export function runTick(opts: { force?: boolean; only?: string } = {}): Promise<
         await updateBadge()
         return report
     }
-    const next = (ticking || Promise.resolve()).then(run, run)
+    // every round's end goes in the diagnostic log, whichever way it ended
+    const logged = async (): Promise<TickReport> => {
+        const report = await run()
+        await noteRound(report.checked, report.skipped).catch(() => {})
+        return report
+    }
+    const next = (ticking || Promise.resolve()).then(logged, logged)
     ticking = next.finally(() => {
         if (ticking === next) ticking = null
     }) as Promise<TickReport>
@@ -303,6 +344,11 @@ export async function trackByLink(url: string): Promise<{ ok: boolean; error?: s
         me || !second
             ? await readAsUserNoted('TweetDetail', tweetDetailVariables(id))
             : await readAsSecondNoted(second)('TweetDetail', tweetDetailVariables(id))
+    const added = await addFrom(answer, id)
+    await logEvent(added.ok ? `watching #${id}, added by its link` : `a reply link wasn't added (#${id}): ${added.error}`).catch(() => {})
+    return added
+}
+async function addFrom(answer: XAnswer, id: string): Promise<{ ok: boolean; error?: string; id?: string }> {
     const kind = classifyAnswer(answer)
     if (kind !== 'ok') return { ok: false, error: kind === 'signed_out' ? 'signed_out' : describeAnswer(answer) }
     const tweet = parseTimeline(answer.json).tweets.find(t => t.id === id)
@@ -313,10 +359,12 @@ export async function trackByLink(url: string): Promise<{ ok: boolean; error?: s
     return { ok: true, id }
 }
 
-export const forget = (id: string) =>
-    updateTracked(tracked => {
+export const forget = async (id: string) => {
+    await updateTracked(tracked => {
         delete tracked[id]
     })
+    await logEvent(`stopped watching #${id}`).catch(() => {})
+}
 
 export const ensureAlarms = async () => {
     const tick = await api.alarms.get(TICK_ALARM).catch(() => null)

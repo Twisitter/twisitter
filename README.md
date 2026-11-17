@@ -79,6 +79,29 @@ stopped by the read limit goes on where it stopped. Results are kept 30 days, as
 ids, states and times, and a reply X hides gets the same note on x.com's pages
 as the user's own.
 
+## Reporting a problem
+
+"Report a problem", at the foot of the popup, opens the form at
+twisitter.com/feedback with the version, the browser, a status summary and the
+diagnostic log filled in (`src/src/report.ts`). They travel in the link's
+`#fragment`, which the browser never sends anywhere, so nothing leaves the
+machine until the person sends the form. The extension itself makes no request
+for it. On Firefox the details are Mozilla's "technical and interaction data",
+declared optional in the manifest: the click asks Firefox for it first
+(`permissions.request`), and a no opens the form without them.
+
+- The log (`src/src/diaglog.ts`) is a line per round that found something,
+  changed or stopped early, per sign-in, account check and change in an
+  account's trouble, and one line per quiet hour with its counts: rounds,
+  routine checks by state, reads by account and kind, and answers that weren't
+  ok. It keeps 400 lines. Post ids go in as `#<id>`; no account's name or id,
+  no cookies, and nothing a post says.
+- On the form, the person can leave the details out, or hide the post ids
+  behind stand-ins. **Send privately** posts to twisitter.com's Worker, which
+  keeps the report and files it as an issue in a private repository.
+  **Post publicly on GitHub** opens this repository's issue form, filled in
+  with the ids always hidden, and the log copied to the clipboard.
+
 ## How it works
 
 - **Capture.** A page hook (`src/src/inject.ts`, in the page's own world) reads
@@ -128,8 +151,9 @@ as the user's own.
   each web client. The page hook sends the ones the page uses; the defaults in
   `src/src/x-api.ts` are from 2026-11-14.
 
-Everything stays in the browser: the user's own sessions, X's own endpoints,
-no servers.
+Everything stays in the browser: the user's own sessions and X's own
+endpoints. The one exception is a problem report the user sends (Reporting a
+problem, above).
 
 ## Develop
 

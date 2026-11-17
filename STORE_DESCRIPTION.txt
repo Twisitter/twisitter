@@ -6,7 +6,8 @@ X can file a reply under "Show probable spam", leave it out of the reply list al
 - Checks each reply a few times over its first month, slowly, with a handful of reads.
 - Puts a note on hidden replies in x.com's own pages.
 - On another account's profile, checks its recent replies the way someone who doesn't follow it sees them.
-- Everything stays in your browser: your own sessions, X's own pages, no servers of ours.
+- Report a problem from the popup, privately or as a public GitHub issue.
+- Everything stays in your browser, read through your own sessions from X's own pages. Only a problem report you choose to send leaves it.
 
 VERSION HISTORY:
 2026/11/16 - 0.0.1

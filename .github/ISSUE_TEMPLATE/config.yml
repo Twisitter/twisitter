@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report privately
+    url: https://twisitter.com/feedback
+    about: No GitHub account needed, and only the developer sees it. Reporting from the extension's popup fills in the details for you.

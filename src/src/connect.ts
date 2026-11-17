@@ -18,6 +18,7 @@
 
 import api from './api'
 import { clearXCookies, restoreCookies, restoreMissingCookies, xCookies, type StoredCookie } from './cookies'
+import { logEvent } from './diaglog'
 import { getSecondAccount, newToken, pendingSignIn, setAccountForHeaders, syncSecondAccountRule, type SecondAccount } from './requests'
 import { KEYS, getLocal, setLocal } from './store'
 
@@ -77,7 +78,10 @@ export async function applySecondAccount() {
     await syncSecondAccountRule().catch(() => {})
 }
 
-const setResult = (r: Omit<ConnectResult, 't'>) => setLocal(CONNECT_RESULT_KEY, { ...r, t: Date.now() })
+const setResult = async (r: Omit<ConnectResult, 't'>) => {
+    await setLocal(CONNECT_RESULT_KEY, { ...r, t: Date.now() })
+    await logEvent(`second account sign-in ${r.ok ? 'connected' : `ended: ${r.error}`}${r.warning ? ` · ${r.warning}` : ''}`).catch(() => {})
+}
 
 // One step of a sign-in at a time, so a cancel never lands in the middle of a
 // finish saving the second account's cookies
@@ -128,6 +132,7 @@ export async function startConnect(mainUserId: string): Promise<{ ok: boolean; e
     // can put the user's login back (recoverConnect)
     await setLocal(CONNECT_KEY, { started, main, mainUserId })
     await api.storage.local.remove(CONNECT_RESULT_KEY)
+    await logEvent('second account sign-in started').catch(() => {})
     try {
         api.alarms.create(CONNECT_ALARM, { delayInMinutes: CONNECT_TIMEOUT_MS / 60000 + 0.5 })
     } catch {
@@ -248,4 +253,5 @@ export async function recoverConnect() {
 export async function disconnectSecond() {
     await api.storage.local.remove([KEYS.second, KEYS.secondStatus, CONNECT_RESULT_KEY])
     await applySecondAccount()
+    await logEvent('second account disconnected').catch(() => {})
 }

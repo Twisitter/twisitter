@@ -68,7 +68,10 @@ function transformManifest(buffer) {
             gecko: {
                 id: 'twisitter@twisitter.com',
                 strict_min_version: '115.0',
-                data_collection_permissions: { required: ['none'] },
+                // nothing leaves for anyone but x.com, apart from a problem report the
+                // person sends from twisitter.com's form: technical data (version,
+                // browser, status, log), declared optional
+                data_collection_permissions: { required: ['none'], optional: ['technicalAndInteraction'] },
             },
         }
         manifest.background = { scripts: [manifest.background.service_worker], persistent: true }

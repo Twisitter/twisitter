@@ -540,7 +540,7 @@ function welcomeSection(s: State) {
                 'Twisitter notices the replies you post on x.com, and reads your Replies tab for those you post from X\u2019s apps. It checks each one a few times over its first month, and tells you if X hides it.',
             ),
         ),
-        el('p', { class: 'small muted', text: 'Twisitter never posts, likes, follows or changes anything on X, and talks to no server but x.com. What it keeps stays in this browser.' }),
+        el('p', { class: 'small muted', text: 'Twisitter never posts, likes, follows or changes anything on X, and talks to no server but x.com. What it keeps stays in this browser, unless you send a problem report.' }),
     )
 }
 
@@ -571,6 +571,24 @@ function devSection() {
     )
 }
 
+// "Report a problem": twisitter.com's form, with the version, status and log
+// when the browser lets them go. Firefox asks people about "technical and
+// interaction data" (the manifest's optional data_collection), and a report's
+// details are that, so there they go only with a yes. The request comes first
+// in the click, while Firefox still counts it as the person's own action.
+async function reportProblem() {
+    let details = true
+    if (__BUILT_FOR__ === 'firefox') {
+        try {
+            details = await (api.permissions as any).request({ data_collection: ['technicalAndInteraction'] })
+        } catch (e) {
+            // a Firefox from before these settings (115 to 139) has nothing to ask
+            details = /data_collection/.test(String((e as Error)?.message || e))
+        }
+    }
+    await ask('open-report', { details })
+}
+
 async function render() {
     await targetReady
     const s: State = await ask('get-state', target ? { tabId: target.tabId } : {})
@@ -584,6 +602,8 @@ async function render() {
         ['check', s && checkSection(s)],
         ['replies', s && repliesSection(s)],
         ['dev', s?.dev && devSection()],
+        // twisitter.com's form, filled in with the version, status and log (report.ts)
+        ['footer', el('footer', {}, el('button', { class: 'link', text: 'Report a problem', onclick: () => void reportProblem() }))],
     ]
     const kids: HTMLElement[] = []
     for (const [name, node] of parts)

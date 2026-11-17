@@ -1,4 +1,4 @@
-Answers for the stores' privacy forms: the Chrome Web Store's Privacy tab and the same fields in Edge Partner Center. Firefox has no such form, and its data collection stays "none". Each justification field takes 1,000 characters at most.
+Answers for the stores' privacy forms: the Chrome Web Store's Privacy tab and the same fields in Edge Partner Center. Firefox has no such form. Its manifest declares no required data collection, and technical data (technicalAndInteraction) as optional, for the problem reports a user chooses to send. Each justification field takes 1,000 characters at most.
 
 Update this file whenever a permission changes, or what the extension does with one.
 
@@ -29,7 +29,7 @@ Twisitter compares how the user's replies look to them with how they look to the
 
 STORAGE
 
-Holds, in chrome.storage.local only: the user's X account id and handle, and X's flag for whether it holds that account back; for each reply the extension watches, its id and date, the id of the post it answers, its first 500 characters and the results of its last 20 checks; for another account's Replies tab the user opens, that account's id, handle and the user's follow, mute and block status, and the ids and dates of its replies, for six hours; for each account check the user asks for, each reply's id, date and result and the check's progress, for 30 days; the optional second account's handle, id, x.com cookies and the same flag; the state of each account's session; while that account signs in, a copy of the user's own x.com cookies, deleted once they're back in the browser; the request settings X's pages use; the ids of replies it has already notified about; and timestamps of recent reads, to keep its pace slow. Nothing leaves the browser but the requests to x.com above.
+Holds, in chrome.storage.local only: the user's X account id and handle, and X's flag for whether it holds that account back; for each watched reply, its id and date, its post's id, its first 500 characters and its last 20 checks' results; for another account's Replies tab the user opens, that account's id, handle and the user's follow, mute and block status, and its replies' ids and dates, for six hours; for each account check, each reply's id, date and result and the check's progress, for 30 days; the optional second account's handle, id, x.com cookies and the same flag; each account's session state; during a sign-in, a copy of the user's own x.com cookies, deleted once they're back; X's request settings; the ids of replies already notified about; recent read times, to keep its pace slow; and a diagnostic log that names no account. Nothing leaves the browser but the requests to x.com above, and a problem report the user chooses to send from twisitter.com's form.
 
 
 NOTIFICATIONS

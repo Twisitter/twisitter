@@ -1,0 +1,42 @@
+name: Report a problem
+description: Something isn't working right in Twisitter.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        **Issues here are public.** Leave out your X username, links to your posts, and anything
+        else that identifies you. To report privately instead, with no GitHub account, use the form
+        at https://twisitter.com/feedback.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A sentence or two is enough. What did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version and browser
+      description: Filled in for you when you report from the extension.
+      placeholder: 0.0.1, Chrome 142, macOS
+  - type: textarea
+    id: status
+    attributes:
+      label: Status
+      description: Filled in for you when you report from the extension. It never names an account.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Diagnostic log (optional)
+      description: >-
+        If you came here from the report form, the log is on your clipboard, so just paste it.
+        Post ids are hidden in that copy. The log never names an account or says what you posted.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else? (optional)
+      description: Screenshots or steps to reproduce. Leave out anything that identifies you.

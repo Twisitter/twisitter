@@ -2,7 +2,8 @@
 // tests' own folder (yarn build-chrome-e2e makes dist-chrome-e2e), never a
 // folder a browser profile has loaded. Nothing reaches X: x.com and api.x.com
 // don't resolve, and every request a test needs is answered by a route, the
-// extension's own background requests included.
+// extension's own background requests included. Nor twisitter.com: a report
+// opened from the popup goes nowhere.
 
 import { test as base, chromium } from '@playwright/test'
 import fs from 'fs'
@@ -35,7 +36,7 @@ export const test = base.extend({
                 `--disable-extensions-except=${extensionPath}`,
                 `--load-extension=${extensionPath}`,
                 '--no-first-run',
-                '--host-resolver-rules=MAP x.com ~NOTFOUND, MAP *.x.com ~NOTFOUND, MAP twimg.com ~NOTFOUND, MAP *.twimg.com ~NOTFOUND',
+                '--host-resolver-rules=MAP x.com ~NOTFOUND, MAP *.x.com ~NOTFOUND, MAP twimg.com ~NOTFOUND, MAP *.twimg.com ~NOTFOUND, MAP twisitter.com ~NOTFOUND',
             ],
         })
         await use(context)

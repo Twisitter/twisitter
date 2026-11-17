@@ -23,6 +23,7 @@ import {
 } from '../../src/src/account-check'
 import { repliesTabCapture } from '../../src/src/capture'
 import { explainOther } from '../../src/src/describe'
+import { getLogLines } from '../../src/src/diaglog'
 import { DAY, HOUR } from '../../src/src/store'
 import { profileFromUrl } from '../../src/src/x-api'
 import { fakeBrowser, settle } from './browser'
@@ -196,6 +197,12 @@ describe('a check', () => {
         expect(browser.store.account_run).toMatchObject({ state: 'done', total: 2, done: 2, findings: 1 })
         // the note on the page: the one X hides, as another account's reply
         expect(await otherNotes()).toEqual({ [IDS.missingReply]: expect.objectContaining({ state: 'missing', viewer: '@you', other: true }) })
+        // the diagnostic log says who read and how it went, naming no account
+        const log = (await getLogLines()).join('\n')
+        expect(log).toMatch(/account check as you · 2 of 2 checked \((missing 1, listed 1|listed 1, missing 1)\) · done/)
+        for (const id of [me.userId, WRITER, SOMEONE, second.userId]) expect(log).not.toContain(id)
+        expect(log).not.toContain('@')
+        expect(log).not.toMatch(/\bauthor\b/)
     })
 
     it('a follow sends the reads through the second account', async () => {
