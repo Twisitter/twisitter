@@ -130,6 +130,14 @@ const NOT_BUILD_INPUTS = [
     'playwright.config.js', 'vitest.config.ts',
 ]
 const BUILD_INPUTS = ['.', ...NOT_BUILD_INPUTS.map(p => `:(exclude)${p}`)]
+// The store description reaches the build only through its release notes, which the
+// build reads just to refuse a version without one: nothing in the extension shows them
+// (publish.test.mjs keeps it so). So rewording it after a store has the version, like
+// any listing text, leaves the code the same, and the same-code checks leave it out. It
+// still has to be committed (assertCleanBuildInputs): the listings and Firefox's source
+// zip come from it.
+const DESCRIPTION = 'STORE_DESCRIPTION.txt'
+const CODE_INPUTS = [...BUILD_INPUTS, `:(exclude)${DESCRIPTION}`]
 
 function git(...args) {
     const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' })
@@ -138,9 +146,11 @@ function git(...args) {
 
 export const headCommit = () => git('rev-parse', 'HEAD').out
 
-// Whether the extension's files differ from `commit`, committed or not. A commit git
+// Whether the extension's code differs from `commit`, committed or not. A commit git
 // can't find counts as changed.
-export const extensionChangedSince = commit => !git('diff', '--quiet', commit, '--', ...BUILD_INPUTS).ok
+export const extensionChangedSince = commit => !git('diff', '--quiet', commit, '--', ...CODE_INPUTS).ok
+// Whether the store description differs from `commit`'s, the same way
+export const descriptionChangedSince = commit => !git('diff', '--quiet', commit, '--', DESCRIPTION).ok
 
 // The build inputs' uncommitted and untracked changes, one per line ('' for none)
 function buildInputChanges() {

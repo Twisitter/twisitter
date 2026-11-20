@@ -59,7 +59,10 @@ globalThis.fetch = async (url, init = {}) => {
         }
         return answer({ status: [process.env.FAKE_CHROME === 'fail' ? 'NOT_AUTHORIZED' : 'OK'] })
     }
-    if (u.startsWith('https://addons.mozilla.org/')) return answer({})
+    if (u.startsWith('https://addons.mozilla.org/')) {
+        if (init.body) fs.appendFileSync(process.env.FAKE_LOG, \`amo description \${JSON.stringify(JSON.parse(init.body).description['en-US'])}\\n\`)
+        return answer({})
+    }
     throw new Error('unexpected fetch: ' + u)
 }
 `
@@ -268,6 +271,31 @@ describe('yarn publish:all', () => {
         expect(ranFirefox(failed.calls)).toBe(false)
     })
 
+    it('lets a reworded store description go to the store still missing the version, since the code is the same', SLOW, () => {
+        const built = git('rev-parse', 'HEAD')
+        expect(run('publish-chrome.mjs').code).toBe(0)
+        const reworded = `A description.\n\nVERSION HISTORY:\n2026/11/17 - ${VERSION}\nA reworded note for ${VERSION}.`
+        write('STORE_DESCRIPTION.txt', `${reworded}\n`)
+        commitAll('reword the note')
+        const r = run('publish-all.mjs')
+        expect(r.code).toBe(0)
+        expect(ranChrome(r.calls)).toBe(false)
+        expect(r.out).toContain("Its listing text is from an earlier STORE_DESCRIPTION.txt: paste the current one into Chrome's dashboard")
+        expect(ranFirefox(r.calls)).toBe(true)
+        expect(Object.keys(status().published).sort()).toEqual(['chrome', 'firefox'])
+        expect(status().commit).toBe(built)
+        // AMO's listing gets the reworded note
+        expect(r.calls).toContain(`amo description ${JSON.stringify(reworded)}`)
+    })
+
+    it('still wants the store description committed', SLOW, () => {
+        write('STORE_DESCRIPTION.txt', `A description.\n\nVERSION HISTORY:\n2026/11/17 - ${VERSION}\nNot committed.\n`)
+        const r = run('publish-all.mjs')
+        expect(r.code).toBe(1)
+        expect(r.calls).toEqual([])
+        expect(r.out).toContain('STORE_DESCRIPTION.txt')
+    })
+
     it('records the commit a store was built from, though HEAD moves while its step waits', SLOW, () => {
         const built = git('rev-parse', 'HEAD')
         const r = run('publish-all.mjs', { FAKE_EDIT_DURING_CHROME: '1' })
@@ -277,6 +305,21 @@ describe('yarn publish:all', () => {
         expect(ranFirefox(r.calls)).toBe(false)
         expect(r.out).toContain(`chrome already got ${VERSION}`)
         expect(Object.keys(status().published)).toEqual(['chrome'])
+    })
+})
+
+describe('the store description', () => {
+    // common.mjs leaves STORE_DESCRIPTION.txt out of the same-code checks because the
+    // extension never shows its release notes (__CHANGELOG__, which webpack fills from
+    // it). If it starts showing them, a reworded note changes the code: put the
+    // description back in those checks.
+    it("isn't part of the extension's code: nothing in src reads its release notes", () => {
+        const src = path.join(SCRIPTS, '..', 'src')
+        const readers = fs
+            .readdirSync(src, { recursive: true })
+            .filter(f => /\.(m?[jt]sx?|html)$/.test(f) && !/__tests__|globals\.d\.ts$/.test(f))
+            .filter(f => fs.readFileSync(path.join(src, f), 'utf8').includes('__CHANGELOG__'))
+        expect(readers).toEqual([])
     })
 })
 

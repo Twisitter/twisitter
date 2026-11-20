@@ -10,13 +10,14 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import {
     c, getManifest, readPublishStatus, assertCleanBuildInputs, assertSameCodeForVersion, assertNodeVersion,
-    assertVersionInDescription,
+    assertVersionInDescription, descriptionChangedSince,
 } from './common.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// `listing`: how that store's listing text gets a description reworded after it has the version
 const stores = [
-    { name: 'chrome', script: 'publish-chrome.mjs' },
-    { name: 'firefox', script: 'publish-firefox.mjs' },
+    { name: 'chrome', script: 'publish-chrome.mjs', listing: "paste the current one into Chrome's dashboard if it isn't there" },
+    { name: 'firefox', script: 'publish-firefox.mjs', listing: 'yarn publish:firefox:text updates it' },
 ]
 
 let current = null
@@ -59,11 +60,16 @@ if (spawnSync('yarn', ['preflight'], { stdio: 'inherit' }).status !== 0) {
     process.exit(1)
 }
 
+// The description reworded since a store got this version (the code is the same)
+const recorded = readPublishStatus().commit
+const reworded = !!recorded && descriptionChangedSince(recorded)
+
 for (const store of stores) {
     if (aborted) break
     const when = publishedAt(store)
     if (when) {
         console.log(c.green(`✔ ${store.name} already has ${version} (${when}), skipping`))
+        if (reworded) console.log(c.yellow(`  Its listing text is from an earlier STORE_DESCRIPTION.txt: ${store.listing}.`))
         continue
     }
     try {
