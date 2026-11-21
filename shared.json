@@ -1,0 +1,16 @@
+{
+  "modules": {
+    "publish": {
+      "stores": ["chrome", "firefox"],
+      "showsReleaseNotes": false,
+      "notesGlobal": "__CHANGELOG__",
+      "versionLine": "either",
+      "privacyFile": "STORE_PRIVACY.txt",
+      "clearEnv": ["DIST_DIR"],
+      "notBuildInputs": [
+        "tests", "scripts", "*.md", ".github", ".gitignore", ".env.example", "graphics", "STORE_PRIVACY.txt",
+        "playwright.config.js", "vitest.config.ts", "shared.json", "shared.lock.json"
+      ]
+    }
+  }
+}

@@ -25,6 +25,7 @@
     "publish:firefox": "yarn preflight && node scripts/publishing/publish-firefox.mjs",
     "publish:firefox:text": "node scripts/publishing/publish-firefox.mjs --text-only",
     "publish:all": "node scripts/publishing/publish-all.mjs",
+    "publish:log": "node scripts/publishing/publish-log.mjs",
     "refresh:chrome": "node scripts/publishing/refresh-chrome-token.mjs"
   },
   "devDependencies": {

@@ -216,6 +216,7 @@ yarn publish:all        # Chrome, then Firefox
 yarn publish:chrome     # one store
 yarn publish:firefox
 yarn publish:firefox:text   # Firefox's description only, no new version
+yarn publish:log        # what went to which store, when, and what failed
 yarn refresh:chrome     # mint a new Chrome refresh token into .env
 ```
 
@@ -228,8 +229,9 @@ Each publish:
 - stops before anything runs when VERSION HISTORY has no entry for the
   manifest's version, the extension's files have uncommitted changes, or Node
   isn't the version `.nvmrc` names (Mozilla's reviewers rebuild with it);
-- runs `yarn preflight`, then `yarn install --immutable` and a fresh production
-  build for each store, and stops if a file changes while it builds;
+- runs `yarn preflight` (a rerun skips it once it has passed for this code),
+  then `yarn install --immutable` and a fresh production build for each store,
+  without `DIST_DIR`, and stops if a file changes while it builds;
 - for Chrome, uploads `chrome.zip`, then waits while you paste the description
   into the dashboard and fill the Privacy tab for any new permission (the API
   can set neither), then submits;
@@ -237,6 +239,12 @@ Each publish:
   the commit built) through `web-ext`, then sets the description;
 - records each store that took the version in `.publish-status.json`
   (gitignored), so a rerun after a failure publishes only to the stores still
-  missing it, and refuses other code under a version a store already has.
+  missing it, and refuses other code under a version a store already has;
+- appends what it did to `.publish-log.jsonl` (gitignored), which
+  `yarn publish:log` prints.
 
 Edge isn't scripted: upload `chrome.zip` in its dashboard.
+
+The publish scripts (`scripts/publishing/`, `scripts/lib/env.mjs`) are synced
+copies, with this extension's settings in `shared.json`. A test fails if one is
+edited here.

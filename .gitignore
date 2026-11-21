@@ -14,8 +14,9 @@ test-results/
 playwright-report/
 .e2e-user-data/
 web-ext-artifacts/
-# which store has which version (scripts/publishing/common.mjs)
+# which store has which version, and the log of every publish (scripts/publishing/common.mjs)
 .publish-status.json
+.publish-log.jsonl
 # raw X answers before scrubbing; only scrubbed copies go in tests/fixtures
 recordings/
 .DS_Store

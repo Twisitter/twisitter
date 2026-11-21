@@ -1,3 +1,5 @@
+// Synced from the shared source (see shared.json): change it there, not here.
+//
 // Guided refresh of CHROME_REFRESH_TOKEN: starts a localhost server, opens the
 // Google consent URL, exchanges the returned code, and writes the new token to
 // .env. Needs http://localhost:<OAUTH_PORT|3000> among the OAuth client's
@@ -38,14 +40,19 @@ const server = http.createServer(async (req, res) => {
     res.end('<h1>Authorization successful!</h1><p>You can close this tab and return to your terminal.</p>')
     console.log('\n' + c.green('✔ Got authorization code.') + ' Exchanging for a refresh token...')
     try {
-        const data = await (await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                client_id: clientId, client_secret: clientSecret,
-                code, grant_type: 'authorization_code', redirect_uri: redirectUri,
-            }),
-        })).json()
+        const data = await (
+            await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    code,
+                    grant_type: 'authorization_code',
+                    redirect_uri: redirectUri,
+                }),
+            })
+        ).json()
         if (!data.refresh_token) {
             console.error(c.red('No refresh token returned!'), JSON.stringify(data.error || data))
             console.error('If you authorized recently, revoke the app at https://myaccount.google.com/permissions and retry.')

@@ -1,4 +1,6 @@
-// Tiny .env support (no dotenv dependency), for the publish scripts.
+// Synced from the shared source (see shared.json): change it there, not here.
+//
+// Tiny .env support, with no dotenv dependency.
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
