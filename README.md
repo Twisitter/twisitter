@@ -193,7 +193,7 @@ answers for the stores' privacy forms.
 
 ## Store builds
 
-With Node 20.20.0 (`.nvmrc`), after the install above:
+With Node 26.13.1 (`.nvmrc`), after the install above:
 
 ```bash
 yarn build-chrome    # dist-chrome and chrome.zip, for Chrome and Edge
